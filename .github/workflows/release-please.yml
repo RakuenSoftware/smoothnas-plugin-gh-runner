@@ -1,0 +1,31 @@
+name: release-please
+
+# Bumps the version + opens (or updates) a "Release vX.Y.Z" PR every
+# time a conventional commit lands on main. Merging that PR creates
+# the v* tag, which fires release.yml to build + publish the image
+# and attach the digest-pinned manifest to the GitHub release.
+#
+# Conventional-commit keywords:
+#   feat:    minor bump (0.1.0 → 0.2.0)
+#   fix:     patch bump (0.1.0 → 0.1.1)
+#   feat!:   major bump (or any commit with BREAKING CHANGE: footer)
+# Other prefixes (chore:, docs:, refactor:, test:, build:, ci:) are
+# included in release notes but don't bump on their own.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
