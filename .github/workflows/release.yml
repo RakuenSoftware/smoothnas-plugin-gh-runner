@@ -1,0 +1,104 @@
+name: release
+
+# Builds + publishes the gh-runner plugin image on tag push.
+# Tag format is plain semver: v0.1.0, v0.1.1, v1.0.0-rc1, etc.
+#
+# Single image (no variants — gh-runner is GPU-agnostic and the
+# actions/runner tarball version is pinned in the Dockerfile). The
+# pushed image digest is read back from buildx and spliced into the
+# manifest's artifact.digest before the manifest is attached to the
+# GitHub release. Operators downloading the manifest get a
+# digest-pinned image reference, not a moving tag.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # gh release create
+  packages: write   # ghcr.io push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+      - name: wrapper tests
+        working-directory: wrapper
+        run: |
+          go vet ./...
+          go test -race ./...
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build + push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+          # buildx pushes a manifest list; the digest output here is
+          # the index digest, which is what we pin in the manifest.
+          provenance: false
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Render manifest with pinned digest
+        env:
+          DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # Splice the digest into artifact.image: image@sha256:...
+          # The CI rewrites the bare-tag form the manifest carries in
+          # dev so installs against released artifacts always pin to
+          # a digest.
+          python3 - <<EOF
+          import re
+          with open("smoothnas-plugin.yaml") as f: m = f.read()
+          ref_re = re.compile(r'(image:\s*ghcr\.io/[^\n]+?)(\n|$)')
+          m2 = ref_re.sub(r'\1@${DIGEST}\2', m, count=1)
+          with open("release/smoothnas-plugin.yaml", "w") as f: f.write(m2)
+          EOF
+          ls -l release/
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/smoothnas-plugin.yaml
+          generate_release_notes: true

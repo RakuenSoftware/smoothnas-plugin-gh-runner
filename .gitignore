@@ -1,0 +1,7 @@
+# Wrapper build artifacts
+wrapper/smoothnas-wrapper
+wrapper/*.test
+wrapper/coverage.out
+
+# CI staging
+release/
