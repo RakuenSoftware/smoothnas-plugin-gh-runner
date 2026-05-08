@@ -103,9 +103,13 @@ jobs:
           EOF
           ls -l release/
 
-      - name: Create GitHub release
+      # release-please created the GitHub release with its own
+      # conventional-commit-derived notes when the release PR merged.
+      # We just attach the digest-pinned manifest as a release asset.
+      # generate_release_notes is left at its default (false) so we
+      # don't overwrite release-please's notes.
+      - name: Attach manifest to release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             release/smoothnas-plugin.yaml
-          generate_release_notes: true
