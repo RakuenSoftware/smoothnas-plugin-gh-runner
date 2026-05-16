@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.2.0...v0.2.1) (2026-05-16)
+
+
+### Bug Fixes
+
+* publish image with current actions runner asset names
+
 ## [0.2.0](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.1.0...v0.2.0) (2026-05-08)
 
 

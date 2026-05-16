@@ -11,6 +11,7 @@ name: release
 # digest-pinned image reference, not a moving tag.
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'

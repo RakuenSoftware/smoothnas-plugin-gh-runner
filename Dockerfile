@@ -21,8 +21,10 @@ FROM ubuntu:22.04
 # RUNNER_VERSION is overridable by CI to track upstream releases. The
 # matching tarball SHA is pinned via RUNNER_SHA256 so the image build
 # fails loudly if upstream rotates a tag.
-ARG RUNNER_VERSION=2.321.0
-ARG RUNNER_SHA256=ba46ba7ce3a4d7236b16fbe44419fb453bc08f866b24f04d549ec89f1722a29e
+ARG RUNNER_VERSION=2.334.0
+ARG RUNNER_SHA256_X64=048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271
+ARG RUNNER_SHA256_ARM64=f44255bd3e80160eb25f71bc83d06ea025f6908748807a584687b3184759f7e4
+ARG RUNNER_SHA256_ARM=84a25196caf971d0c634e32864731e773e1668235f799666fc0ec40ac666a0ab
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -52,9 +54,16 @@ USER runner
 WORKDIR /home/runner
 
 # Pull and verify the actions/runner tarball.
-RUN curl -fsSLo runner.tar.gz \
-        "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${TARGETARCH}-${RUNNER_VERSION}.tar.gz" \
- && echo "${RUNNER_SHA256}  runner.tar.gz" | sha256sum -c - \
+RUN set -eux; \
+    case "${TARGETARCH}" in \
+      amd64) runner_arch="x64"; sha256="${RUNNER_SHA256_X64}" ;; \
+      arm64) runner_arch="arm64"; sha256="${RUNNER_SHA256_ARM64}" ;; \
+      arm) runner_arch="arm"; sha256="${RUNNER_SHA256_ARM}" ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSLo runner.tar.gz \
+        "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${runner_arch}-${RUNNER_VERSION}.tar.gz"; \
+    echo "${sha256}  runner.tar.gz" | sha256sum -c - \
  && tar xzf runner.tar.gz \
  && rm runner.tar.gz
 

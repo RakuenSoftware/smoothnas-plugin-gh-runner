@@ -15,7 +15,7 @@ kind: Plugin
 
 metadata:
   name: gh-runner
-  version: 0.2.0 # x-release-please-version
+  version: 0.2.1 # x-release-please-version
   description: |
     GitHub Actions self-hosted runner. Each instance registers itself
     with the configured repo or org on container start and deregisters
@@ -27,7 +27,7 @@ metadata:
 
 artifact:
   type: oci-image
-  image: ghcr.io/rakuensoftware/smoothnas-plugin-gh-runner:0.2.0 # x-release-please-version
+  image: ghcr.io/rakuensoftware/smoothnas-plugin-gh-runner:0.2.1 # x-release-please-version
   # digest filled in by .github/workflows/release.yml at publish time.
 
 container:
