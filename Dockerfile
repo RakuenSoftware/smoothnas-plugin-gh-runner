@@ -28,6 +28,7 @@ ARG RUNNER_SHA256_ARM=84a25196caf971d0c634e32864731e773e1668235f799666fc0ec40ac6
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV RUNNER_ALLOW_RUNASROOT=1
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
 # GitHub API calls; git/ca-certs/tar/sudo because the runner expects
