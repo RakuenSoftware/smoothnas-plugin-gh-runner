@@ -58,6 +58,7 @@ const (
 	recycleDelay      = 10 * time.Second
 	defaultDockerHost = "unix:///var/run/docker.sock"
 	workerLabelKey    = "io.smoothnas.gh-runner.worker"
+	staleSweepEvery   = 1 * time.Minute
 )
 
 type config struct {
@@ -483,7 +484,14 @@ func runController(ctx context.Context, cfg config) error {
 
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+	lastStaleSweep := time.Time{}
 	for {
+		if time.Since(lastStaleSweep) >= staleSweepEvery {
+			if err := removeStaleGitHubRunners(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token); err != nil {
+				log.Printf("cleanup stale github runners: %v", err)
+			}
+			lastStaleSweep = time.Now()
+		}
 		if err := reconcileWorkers(ctx, dc, cfg, image, workspaceSource, networkMode); err != nil {
 			log.Printf("reconcile workers: %v", err)
 		}
@@ -833,6 +841,22 @@ func removeTokenEndpoint(apiBase string, sc scope) (string, error) {
 	return ghEndpoint(apiBase, sc, "remove-token")
 }
 
+func runnersEndpoint(apiBase string, sc scope) (string, error) {
+	base, err := url.Parse(apiBase)
+	if err != nil {
+		return "", fmt.Errorf("parse api base: %w", err)
+	}
+	var p string
+	if sc.IsOrg() {
+		p = path.Join(base.Path, "orgs", sc.owner, "actions", "runners")
+	} else {
+		p = path.Join(base.Path, "repos", sc.owner, sc.repo, "actions", "runners")
+	}
+	out := *base
+	out.Path = p
+	return out.String(), nil
+}
+
 func ghEndpoint(apiBase string, sc scope, tokenAction string) (string, error) {
 	base, err := url.Parse(apiBase)
 	if err != nil {
@@ -849,43 +873,142 @@ func ghEndpoint(apiBase string, sc scope, tokenAction string) (string, error) {
 	return out.String(), nil
 }
 
+type githubRunner struct {
+	ID     int64  `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Busy   bool   `json:"busy"`
+}
+
+func removeStaleGitHubRunners(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string) error {
+	runners, err := listGitHubRunners(ctx, client, apiBase, sc, pat)
+	if err != nil {
+		return err
+	}
+	for _, runner := range runners {
+		if !staleSmoothNASRunner(runner) {
+			continue
+		}
+		log.Printf("removing stale github runner registration %q id=%d status=%s busy=%t", runner.Name, runner.ID, runner.Status, runner.Busy)
+		if err := deleteGitHubRunner(ctx, client, apiBase, sc, pat, runner.ID); err != nil {
+			log.Printf("delete stale github runner %q: %v", runner.Name, err)
+		}
+	}
+	return nil
+}
+
+func staleSmoothNASRunner(runner githubRunner) bool {
+	return runner.ID > 0 &&
+		strings.HasPrefix(runner.Name, runnerNamePrefix) &&
+		strings.EqualFold(runner.Status, "offline")
+}
+
+func listGitHubRunners(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string) ([]githubRunner, error) {
+	endpoint, err := runnersEndpoint(apiBase, sc)
+	if err != nil {
+		return nil, err
+	}
+	out := []githubRunner{}
+	for page := 1; ; page++ {
+		u, err := url.Parse(endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("parse runners endpoint: %w", err)
+		}
+		q := u.Query()
+		q.Set("per_page", "100")
+		q.Set("page", strconv.Itoa(page))
+		u.RawQuery = q.Encode()
+
+		var resp struct {
+			Runners []githubRunner `json:"runners"`
+		}
+		if err := ghAPIJSON(ctx, client, http.MethodGet, u.String(), pat, nil, &resp); err != nil {
+			return nil, err
+		}
+		out = append(out, resp.Runners...)
+		if len(resp.Runners) < 100 {
+			return out, nil
+		}
+	}
+}
+
+func deleteGitHubRunner(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string, id int64) error {
+	endpoint, err := runnersEndpoint(apiBase, sc)
+	if err != nil {
+		return err
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return fmt.Errorf("parse runners endpoint: %w", err)
+	}
+	u.Path = path.Join(u.Path, strconv.FormatInt(id, 10))
+	if err := ghAPIJSON(ctx, client, http.MethodDelete, u.String(), pat, nil, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
 // ghAPIPostToken POSTs against a GitHub /actions/runners/*-token
 // endpoint and returns the minted token field. Both registration
 // and remove endpoints share the same response shape.
 func ghAPIPostToken(ctx context.Context, client *http.Client, endpoint, pat string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	var out struct {
+		Token     string `json:"token"`
+		ExpiresAt string `json:"expires_at"`
+	}
+	if err := ghAPIJSON(ctx, client, http.MethodPost, endpoint, pat, nil, &out); err != nil {
+		return "", err
+	}
+	if out.Token == "" {
+		return "", fmt.Errorf("github api response missing token field")
+	}
+	return out.Token, nil
+}
+
+func ghAPIJSON(ctx context.Context, client *http.Client, method, endpoint, pat string, in any, out any) error {
+	var body io.Reader
+	if in != nil {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(in); err != nil {
+			return fmt.Errorf("encode request: %w", err)
+		}
+		body = &buf
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
 	if err != nil {
-		return "", fmt.Errorf("build request: %w", err)
+		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Authorization", "Bearer "+pat)
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	req.Header.Set("User-Agent", "smoothnas-plugin-gh-runner/0.1")
+	if in != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("http: %w", err)
+		return fmt.Errorf("http: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", fmt.Errorf("read body: %w", err)
+		return fmt.Errorf("read body: %w", err)
+	}
+	if resp.StatusCode == http.StatusNotFound && method == http.MethodDelete {
+		return nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("github api %s: %d %s", endpoint, resp.StatusCode, bytes.TrimSpace(body))
+		return fmt.Errorf("github api %s: %d %s", endpoint, resp.StatusCode, bytes.TrimSpace(respBody))
 	}
-	var out struct {
-		Token     string `json:"token"`
-		ExpiresAt string `json:"expires_at"`
+	if out == nil || len(respBody) == 0 {
+		return nil
 	}
-	if err := json.Unmarshal(body, &out); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
+	if err := json.Unmarshal(respBody, out); err != nil {
+		return fmt.Errorf("decode response: %w", err)
 	}
-	if out.Token == "" {
-		return "", fmt.Errorf("github api response missing token field; body=%s", string(body))
-	}
-	return out.Token, nil
+	return nil
 }
 
 // buildConfigArgs constructs the argv passed to ./config.sh. Org
