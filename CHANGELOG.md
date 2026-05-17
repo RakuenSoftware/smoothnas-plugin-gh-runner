@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.9](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.8...v0.3.9) (2026-05-17)
+
+
+### Bug Fixes
+
+* stabilize runner container dns ([b17589e](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/b17589e1851218a496160d314cc00957abf223ab))
+* stabilize runner container dns ([ebaf2c8](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/ebaf2c8129833fd83523f7f59984e6b7d0247739))
+
 ## [0.3.8](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.7...v0.3.8) (2026-05-17)
 
 
