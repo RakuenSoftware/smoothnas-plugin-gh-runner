@@ -553,6 +553,9 @@ func TestLoadConfigDefaultsToEphemeralWorkerWorkspace(t *testing.T) {
 	if cfg.bindWorkspace {
 		t.Fatal("GH_RUNNER_BIND_WORKSPACE default should leave worker workspace in the ephemeral rootfs")
 	}
+	if cfg.workerCount != defaultWorkers {
+		t.Fatalf("workerCount default = %d, want %d", cfg.workerCount, defaultWorkers)
+	}
 
 	t.Setenv("GH_RUNNER_BIND_WORKSPACE", "true")
 	cfg, err = loadConfig()

@@ -54,6 +54,7 @@ const (
 	defaultAPIBase    = "https://api.github.com"
 	defaultRunnerHome = "/home/runner"
 	defaultDNSServers = "1.1.1.1,8.8.8.8"
+	defaultWorkers    = 1
 	runnerNamePrefix  = "smoothnas-"
 	maxRunnerNameLen  = 64
 	recycleDelay      = 10 * time.Second
@@ -150,7 +151,7 @@ func loadConfig() (config, error) {
 		runnerHome:    envOr("RUNNER_HOME", defaultRunnerHome),
 		ephemeral:     envBool("GH_RUNNER_EPHEMERAL", true),
 		scope:         sc,
-		workerCount:   envInt("GH_RUNNER_WORKERS", 2),
+		workerCount:   envInt("GH_RUNNER_WORKERS", defaultWorkers),
 		dockerHost:    envOr("DOCKER_HOST", defaultDockerHost),
 		workerImage:   os.Getenv("GH_RUNNER_WORKER_IMAGE"),
 		bindWorkspace: envBool("GH_RUNNER_BIND_WORKSPACE", false),

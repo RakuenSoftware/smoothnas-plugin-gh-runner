@@ -81,7 +81,7 @@ config:
     description: Runner group name (org-level runners only; ignored at repo scope).
   - key: GH_RUNNER_WORKERS
     type: string
-    default: "2"
+    default: "1"
     description: Number of ephemeral worker containers to keep available.
   - key: GH_RUNNER_BIND_WORKSPACE
     type: string
