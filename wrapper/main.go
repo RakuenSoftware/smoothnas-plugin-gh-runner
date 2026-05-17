@@ -61,19 +61,20 @@ const (
 )
 
 type config struct {
-	mode        string
-	repoURL     string
-	token       string
-	tokenKind   string
-	labels      string
-	group       string
-	apiBase     string
-	runnerHome  string
-	ephemeral   bool
-	scope       scope
-	workerCount int
-	dockerHost  string
-	workerImage string
+	mode          string
+	repoURL       string
+	token         string
+	tokenKind     string
+	labels        string
+	group         string
+	apiBase       string
+	runnerHome    string
+	ephemeral     bool
+	scope         scope
+	workerCount   int
+	dockerHost    string
+	workerImage   string
+	bindWorkspace bool
 }
 
 func main() {
@@ -130,19 +131,20 @@ func loadConfig() (config, error) {
 	}
 
 	return config{
-		mode:        envOr("GH_RUNNER_MODE", "controller"),
-		repoURL:     repoURL,
-		token:       token,
-		tokenKind:   classifyToken(token),
-		labels:      envOr("GH_RUNNER_LABELS", "self-hosted,linux,x64,smoothnas"),
-		group:       envOr("GH_RUNNER_GROUP", "default"),
-		apiBase:     envOr("GH_API_BASE", defaultAPIBase),
-		runnerHome:  envOr("RUNNER_HOME", defaultRunnerHome),
-		ephemeral:   envBool("GH_RUNNER_EPHEMERAL", true),
-		scope:       sc,
-		workerCount: envInt("GH_RUNNER_WORKERS", 2),
-		dockerHost:  envOr("DOCKER_HOST", defaultDockerHost),
-		workerImage: os.Getenv("GH_RUNNER_WORKER_IMAGE"),
+		mode:          envOr("GH_RUNNER_MODE", "controller"),
+		repoURL:       repoURL,
+		token:         token,
+		tokenKind:     classifyToken(token),
+		labels:        envOr("GH_RUNNER_LABELS", "self-hosted,linux,x64,smoothnas"),
+		group:         envOr("GH_RUNNER_GROUP", "default"),
+		apiBase:       envOr("GH_API_BASE", defaultAPIBase),
+		runnerHome:    envOr("RUNNER_HOME", defaultRunnerHome),
+		ephemeral:     envBool("GH_RUNNER_EPHEMERAL", true),
+		scope:         sc,
+		workerCount:   envInt("GH_RUNNER_WORKERS", 2),
+		dockerHost:    envOr("DOCKER_HOST", defaultDockerHost),
+		workerImage:   os.Getenv("GH_RUNNER_WORKER_IMAGE"),
+		bindWorkspace: envBool("GH_RUNNER_BIND_WORKSPACE", false),
 	}, nil
 }
 
@@ -457,9 +459,13 @@ func runController(ctx context.Context, cfg config) error {
 	if err != nil {
 		return fmt.Errorf("inspect controller container %q: %w", selfID, err)
 	}
-	workspaceSource, err := hostMountSource(self, filepath.Join(cfg.runnerHome, "_work"))
-	if err != nil {
-		return err
+	workspaceSource := ""
+	if cfg.bindWorkspace {
+		var err error
+		workspaceSource, err = hostMountSource(self, filepath.Join(cfg.runnerHome, "_work"))
+		if err != nil {
+			return err
+		}
 	}
 	image := cfg.workerImage
 	if image == "" {
@@ -469,7 +475,11 @@ func runController(ctx context.Context, cfg config) error {
 		return errors.New("could not determine worker image; set GH_RUNNER_WORKER_IMAGE")
 	}
 	networkMode := self.HostConfig.NetworkMode
-	log.Printf("starting controller: workers=%d image=%q network=%q workspace=%q", cfg.workerCount, image, networkMode, workspaceSource)
+	workspaceMode := "ephemeral-rootfs"
+	if cfg.bindWorkspace {
+		workspaceMode = workspaceSource
+	}
+	log.Printf("starting controller: workers=%d image=%q network=%q workspace=%q", cfg.workerCount, image, networkMode, workspaceMode)
 
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -507,7 +517,7 @@ func reconcileWorkers(ctx context.Context, dc *dockerClient, cfg config, image, 
 			if err := dc.removeContainer(ctx, w.ID, true); err != nil {
 				log.Printf("remove worker %s: %v", name, err)
 			}
-			_ = os.RemoveAll(filepath.Join(cfg.runnerHome, "_work", "workers", name))
+			removeWorkerHostWorkspace(cfg, name)
 		}
 	}
 	for running < cfg.workerCount {
@@ -521,11 +531,15 @@ func reconcileWorkers(ctx context.Context, dc *dockerClient, cfg config, image, 
 
 func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, workspaceSource, networkMode string) error {
 	name := fmt.Sprintf("gh-runner-worker-%d", time.Now().UnixNano())
-	containerWorkspace := filepath.Join(cfg.runnerHome, "_work", "workers", name)
-	if err := os.MkdirAll(containerWorkspace, 0o750); err != nil {
-		return fmt.Errorf("create worker workspace: %w", err)
+	var binds []string
+	if cfg.bindWorkspace {
+		containerWorkspace := filepath.Join(cfg.runnerHome, "_work", "workers", name)
+		if err := os.MkdirAll(containerWorkspace, 0o750); err != nil {
+			return fmt.Errorf("create worker workspace: %w", err)
+		}
+		hostWorkspace := filepath.Join(workspaceSource, "workers", name)
+		binds = []string{hostWorkspace + ":" + filepath.Join(cfg.runnerHome, "_work") + ":rw"}
 	}
-	hostWorkspace := filepath.Join(workspaceSource, "workers", name)
 	env := []string{
 		"GH_RUNNER_MODE=worker",
 		"GH_REPO_URL=" + cfg.repoURL,
@@ -541,19 +555,19 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		Env:    env,
 		Labels: map[string]string{workerLabelKey: "true"},
 		HostConfig: hostConfig{
-			Binds:         []string{hostWorkspace + ":" + filepath.Join(cfg.runnerHome, "_work") + ":rw"},
+			Binds:         binds,
 			NetworkMode:   networkMode,
 			RestartPolicy: restartPolicy{Name: "no"},
 		},
 	}
 	id, err := dc.createContainer(ctx, name, req)
 	if err != nil {
-		_ = os.RemoveAll(containerWorkspace)
+		removeWorkerHostWorkspace(cfg, name)
 		return err
 	}
 	if err := dc.startContainer(ctx, id); err != nil {
 		_ = dc.removeContainer(ctx, id, true)
-		_ = os.RemoveAll(containerWorkspace)
+		removeWorkerHostWorkspace(cfg, name)
 		return err
 	}
 	log.Printf("started ephemeral worker %s (%s)", name, shortID(id))
@@ -572,9 +586,16 @@ func stopAllWorkers(ctx context.Context, dc *dockerClient, cfg config) error {
 			_ = dc.stopContainer(ctx, w.ID, 60)
 		}
 		_ = dc.removeContainer(ctx, w.ID, true)
-		_ = os.RemoveAll(filepath.Join(cfg.runnerHome, "_work", "workers", name))
+		removeWorkerHostWorkspace(cfg, name)
 	}
 	return nil
+}
+
+func removeWorkerHostWorkspace(cfg config, name string) {
+	if !cfg.bindWorkspace {
+		return
+	}
+	_ = os.RemoveAll(filepath.Join(cfg.runnerHome, "_work", "workers", name))
 }
 
 func newDockerClient(host string) (*dockerClient, error) {

@@ -7,8 +7,9 @@
 #
 # The plugin runs one controller container. That controller uses the
 # SmoothNAS runtime socket to start one-shot ephemeral runner worker
-# containers. Worker workspaces live under the tier-bound workspace
-# volume and are deleted when each worker exits.
+# containers. Workers use their ephemeral container rootfs for active
+# GitHub workspaces by default; the tier-bound workspace volume remains
+# available for the controller and can be opt-in bound to workers.
 
 apiVersion: smoothnas.io/v1
 kind: Plugin
@@ -20,8 +21,8 @@ metadata:
     GitHub Actions ephemeral self-hosted runner controller. The
     controller keeps a small pool of one-shot worker containers; each
     worker registers with GitHub, runs one job, deregisters, and is
-    removed with its workspace. Outbound network only: no ports exposed,
-    no SmoothNAS UI to embed — GitHub.com is the UI.
+    removed with its ephemeral workspace. Outbound network only: no
+    ports exposed, no SmoothNAS UI to embed — GitHub.com is the UI.
   vendor: smoothnas
   homepage: https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner
 
@@ -82,3 +83,10 @@ config:
     type: string
     default: "2"
     description: Number of ephemeral worker containers to keep available.
+  - key: GH_RUNNER_BIND_WORKSPACE
+    type: string
+    default: "false"
+    description: |
+      Set to true to bind the tier-bound workspace volume into each
+      worker. The default false keeps active GitHub checkouts inside
+      the worker's ephemeral rootfs and removes them with the worker.

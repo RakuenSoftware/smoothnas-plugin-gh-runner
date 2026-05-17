@@ -420,6 +420,28 @@ func TestEnvBool(t *testing.T) {
 	}
 }
 
+func TestLoadConfigDefaultsToEphemeralWorkerWorkspace(t *testing.T) {
+	t.Setenv("GH_REPO_URL", "https://github.com/owner/repo")
+	t.Setenv("GH_RUNNER_TOKEN", "ghp_xxx")
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if cfg.bindWorkspace {
+		t.Fatal("GH_RUNNER_BIND_WORKSPACE default should leave worker workspace in the ephemeral rootfs")
+	}
+
+	t.Setenv("GH_RUNNER_BIND_WORKSPACE", "true")
+	cfg, err = loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig with bind workspace: %v", err)
+	}
+	if !cfg.bindWorkspace {
+		t.Fatal("GH_RUNNER_BIND_WORKSPACE=true should bind the tier workspace into workers")
+	}
+}
+
 func TestEnvInt(t *testing.T) {
 	if got := envInt("DEFINITELY_NOT_SET_GHRUNNER_INT", 4); got != 4 {
 		t.Fatalf("unset default = %d, want 4", got)

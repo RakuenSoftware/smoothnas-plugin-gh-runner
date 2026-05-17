@@ -15,7 +15,7 @@ In the SmoothNAS UI:
 1. **Get a token from GitHub.** Either:
    - Create a fine-grained PAT with `actions:write` scope on the target repo, use a GitHub App installation token, or use an OAuth token from `gh auth token` with sufficient access. Paste it as `GH_RUNNER_TOKEN`. Short-lived registration tokens from the GitHub UI are not supported in controller mode because each worker needs a fresh registration token.
 2. **Install** → paste this manifest into the wizard, set `GH_REPO_URL` (e.g. `https://github.com/my-org/my-repo`) and `GH_RUNNER_TOKEN`, pick a tier with SSD slot capacity, and choose `GH_RUNNER_WORKERS` for concurrency.
-3. **Start** → click Start on the plugin card; tierd materialises the controller container. The controller uses the SmoothNAS runtime socket to start worker containers. Each worker registers with GitHub as ephemeral, appears in the runner list while idle or running, handles one job, then exits and is removed with its workspace.
+3. **Start** → click Start on the plugin card; tierd materialises the controller container. The controller uses the SmoothNAS runtime socket to start worker containers. Each worker registers with GitHub as ephemeral, appears in the runner list while idle or running, handles one job, then exits and is removed with its ephemeral workspace.
 4. **Use** → target the runners from a workflow:
    ```yaml
    jobs:
@@ -30,7 +30,7 @@ Uninstall via the UI's Danger Zone stops the controller. The controller stops/re
 
 The actions/runner tarball ships with `config.sh` (registration) and `run.sh` (the runner loop) but no glue that fits SmoothNAS' lifecycle. The `wrapper/` Go binary has two modes:
 
-- `GH_RUNNER_MODE=controller` (default): inspect the controller container, discover the host path behind `/home/runner/_work`, and use the SmoothNAS runtime socket to create/remove worker containers.
+- `GH_RUNNER_MODE=controller` (default): inspect the controller container and use the SmoothNAS runtime socket to create/remove worker containers.
 - `GH_RUNNER_MODE=worker`: register one ephemeral GitHub runner, run exactly one job, clean local runner/action/tool state, and exit.
 
 Controller mode requires SmoothNAS' `runtime-control` plugin profile. That profile mounts `/run/smoothnas-runtime/docker.sock` at `/var/run/docker.sock` and sets `DOCKER_HOST=unix:///var/run/docker.sock`; it intentionally does not grant Wolf's device or capability set.
@@ -50,13 +50,15 @@ The wrapper code is Go with unit tests covering the token-type heuristic, repo-v
 
 ## Worker Workspaces
 
-Each worker gets a fresh workspace directory under the controller's tier-bound volume:
+By default, each worker uses `/home/runner/_work` inside its own ephemeral container rootfs. The whole worker container is removed after one job, so GitHub checkout state, `_actions`, `_temp`, `_tool`, and any job-created files are removed with it.
+
+Set `GH_RUNNER_BIND_WORKSPACE=true` to put worker workspace directories under the controller's tier-bound volume instead:
 
 ```
 /mnt/<tier>/.plugins/gh-runner/workspace/workers/<worker-name>/  →  /home/runner/_work
 ```
 
-Workspaces are not shared and are deleted after the worker exits. That avoids stale `_actions`, `_temp`, `_tool`, and repository checkout state across jobs.
+Bound workspaces are still not shared and are deleted after the worker exits. The default ephemeral-rootfs mode avoids keeping active GitHub checkouts on SmoothFS.
 
 ## Local development
 
