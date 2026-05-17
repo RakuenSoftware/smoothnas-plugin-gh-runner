@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.0...v0.3.1) (2026-05-17)
+
+
+### Bug Fixes
+
+* accept GitHub OAuth runner tokens ([2add1a5](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/2add1a50c95a96a239753ab8b767045506efcca1))
+
 ## [0.3.0](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.2.3...v0.3.0) (2026-05-17)
 
 
