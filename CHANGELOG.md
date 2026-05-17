@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.2.2...v0.2.3) (2026-05-17)
+
+
+### Bug Fixes
+
+* stabilize runner startup ([334b9c0](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/334b9c0213d7cd4f880544ce9fb5713b7757a82b))
+
 ## [0.2.2](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.2.1...v0.2.2) (2026-05-16)
 
 
