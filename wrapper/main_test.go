@@ -392,7 +392,7 @@ func TestMintRemoveToken_HitsRemoveEndpoint(t *testing.T) {
 	}
 }
 
-func TestRemoveStaleGitHubRunnersDeletesOfflineSmoothNASRunners(t *testing.T) {
+func TestRemoveStaleGitHubRunnersDeletesOnlyIdleOfflineSmoothNASRunners(t *testing.T) {
 	var deletes []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -402,7 +402,8 @@ func TestRemoveStaleGitHubRunnersDeletesOfflineSmoothNASRunners(t *testing.T) {
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"runners": []map[string]any{
-					{"id": 1, "name": "smoothnas-dead", "status": "offline", "busy": true},
+					{"id": 1, "name": "smoothnas-busy", "status": "offline", "busy": true},
+					{"id": 4, "name": "smoothnas-dead", "status": "offline", "busy": false},
 					{"id": 2, "name": "smoothnas-live", "status": "online", "busy": false},
 					{"id": 3, "name": "other-dead", "status": "offline", "busy": false},
 				},
@@ -420,7 +421,7 @@ func TestRemoveStaleGitHubRunnersDeletesOfflineSmoothNASRunners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("removeStaleGitHubRunners: %v", err)
 	}
-	want := []string{"/orgs/my-org/actions/runners/1"}
+	want := []string{"/orgs/my-org/actions/runners/4"}
 	if !reflect.DeepEqual(deletes, want) {
 		t.Fatalf("deletes = %v, want %v", deletes, want)
 	}
@@ -440,6 +441,33 @@ func TestStaleRunnerMatchesWorker(t *testing.T) {
 	}
 	if staleRunnerMatchesWorker([]githubRunner{{Name: "smoothnas-490ef132d1b1x-1779039937"}}, "490ef132d1b183469d9dbc67c4a2abaab31d701a735441cd736b79852671a275") {
 		t.Fatal("unexpected partial-prefix match without separator")
+	}
+}
+
+func TestWorkerHasGitHubRunner(t *testing.T) {
+	runners := []githubRunner{
+		{Name: "smoothnas-490ef132d1b1-1779039937", Status: "online"},
+		{Name: "smoothnas-other-1779039938", Status: "offline"},
+	}
+
+	if !workerHasGitHubRunner(runners, "490ef132d1b183469d9dbc67c4a2abaab31d701a735441cd736b79852671a275") {
+		t.Fatal("expected GitHub runner name to match worker container ID prefix")
+	}
+	if workerHasGitHubRunner(runners, "11111111111183469d9dbc67c4a2abaab31d701a735441cd736b79852671a275") {
+		t.Fatal("unexpected match for unrelated worker")
+	}
+}
+
+func TestWorkerRegistrationGraceExpired(t *testing.T) {
+	now := time.Unix(200, 0)
+	if workerRegistrationGraceExpired(containerSummary{Created: 0}, now) {
+		t.Fatal("missing Created timestamp should not expire")
+	}
+	if workerRegistrationGraceExpired(containerSummary{Created: now.Add(-registrationGrace + time.Second).Unix()}, now) {
+		t.Fatal("worker inside registration grace should not expire")
+	}
+	if !workerRegistrationGraceExpired(containerSummary{Created: now.Add(-registrationGrace).Unix()}, now) {
+		t.Fatal("worker at registration grace should expire")
 	}
 }
 

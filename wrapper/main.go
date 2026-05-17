@@ -59,6 +59,7 @@ const (
 	defaultDockerHost = "unix:///var/run/docker.sock"
 	workerLabelKey    = "io.smoothnas.gh-runner.worker"
 	staleSweepEvery   = 1 * time.Minute
+	registrationGrace = 2 * time.Minute
 )
 
 type config struct {
@@ -404,10 +405,11 @@ type dockerClient struct {
 }
 
 type containerSummary struct {
-	ID     string            `json:"Id"`
-	Names  []string          `json:"Names"`
-	State  string            `json:"State"`
-	Labels map[string]string `json:"Labels"`
+	ID      string            `json:"Id"`
+	Names   []string          `json:"Names"`
+	Created int64             `json:"Created"`
+	State   string            `json:"State"`
+	Labels  map[string]string `json:"Labels"`
 }
 
 type containerInspect struct {
@@ -487,10 +489,14 @@ func runController(ctx context.Context, cfg config) error {
 	lastStaleSweep := time.Time{}
 	for {
 		if time.Since(lastStaleSweep) >= staleSweepEvery {
-			stale, err := listStaleGitHubRunners(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
+			runners, err := listGitHubRunners(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
 			if err != nil {
 				log.Printf("cleanup stale github runners: %v", err)
 			} else {
+				if err := removeOrphanedLocalWorkers(ctx, dc, cfg, runners, time.Now()); err != nil {
+					log.Printf("cleanup orphaned local workers: %v", err)
+				}
+				stale := staleGitHubRunners(runners)
 				if err := removeStaleLocalWorkers(ctx, dc, cfg, stale); err != nil {
 					log.Printf("cleanup stale local workers: %v", err)
 				}
@@ -631,14 +637,54 @@ func removeStaleLocalWorkers(ctx context.Context, dc *dockerClient, cfg config, 
 	return nil
 }
 
+func removeOrphanedLocalWorkers(ctx context.Context, dc *dockerClient, cfg config, runners []githubRunner, now time.Time) error {
+	workers, err := dc.listWorkers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, w := range workers {
+		name := containerName(w)
+		if w.State != "running" || workerHasGitHubRunner(runners, w.ID) || !workerRegistrationGraceExpired(w, now) {
+			continue
+		}
+		log.Printf("removing local worker %s with no github runner registration", name)
+		if err := dc.stopContainer(ctx, w.ID, 30); err != nil {
+			log.Printf("stop orphaned local worker %s: %v", name, err)
+		}
+		if err := dc.removeContainer(ctx, w.ID, true); err != nil {
+			log.Printf("remove orphaned local worker %s: %v", name, err)
+			continue
+		}
+		removeWorkerHostWorkspace(cfg, name)
+	}
+	return nil
+}
+
 func staleRunnerMatchesWorker(stale []githubRunner, workerID string) bool {
-	workerPrefix := runnerNamePrefix + shortID(workerID)
 	for _, runner := range stale {
-		if runner.Name == workerPrefix || strings.HasPrefix(runner.Name, workerPrefix+"-") {
+		if runnerNameMatchesWorker(runner.Name, workerID) {
 			return true
 		}
 	}
 	return false
+}
+
+func workerHasGitHubRunner(runners []githubRunner, workerID string) bool {
+	for _, runner := range runners {
+		if runnerNameMatchesWorker(runner.Name, workerID) {
+			return true
+		}
+	}
+	return false
+}
+
+func runnerNameMatchesWorker(runnerName, workerID string) bool {
+	workerPrefix := runnerNamePrefix + shortID(workerID)
+	return runnerName == workerPrefix || strings.HasPrefix(runnerName, workerPrefix+"-")
+}
+
+func workerRegistrationGraceExpired(w containerSummary, now time.Time) bool {
+	return w.Created > 0 && now.Sub(time.Unix(w.Created, 0)) >= registrationGrace
 }
 
 func removeWorkerHostWorkspace(cfg config, name string) {
@@ -936,13 +982,17 @@ func listStaleGitHubRunners(ctx context.Context, client *http.Client, apiBase st
 	if err != nil {
 		return nil, err
 	}
+	return staleGitHubRunners(runners), nil
+}
+
+func staleGitHubRunners(runners []githubRunner) []githubRunner {
 	stale := make([]githubRunner, 0, len(runners))
 	for _, runner := range runners {
 		if staleSmoothNASRunner(runner) {
 			stale = append(stale, runner)
 		}
 	}
-	return stale, nil
+	return stale
 }
 
 func deleteStaleGitHubRunners(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string, stale []githubRunner) {
@@ -957,7 +1007,8 @@ func deleteStaleGitHubRunners(ctx context.Context, client *http.Client, apiBase 
 func staleSmoothNASRunner(runner githubRunner) bool {
 	return runner.ID > 0 &&
 		strings.HasPrefix(runner.Name, runnerNamePrefix) &&
-		strings.EqualFold(runner.Status, "offline")
+		strings.EqualFold(runner.Status, "offline") &&
+		!runner.Busy
 }
 
 func listGitHubRunners(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string) ([]githubRunner, error) {
