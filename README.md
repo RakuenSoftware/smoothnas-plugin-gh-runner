@@ -13,7 +13,7 @@ This is the second reference plugin built against the [SmoothNAS plugin system](
 In the SmoothNAS UI:
 
 1. **Get a token from GitHub.** Either:
-   - Create a fine-grained PAT with `actions:write` scope on the target repo, or an org-capable token for org runners. Paste it as `GH_RUNNER_TOKEN`. Short-lived registration tokens from the GitHub UI are not supported in controller mode because each worker needs a fresh registration token.
+   - Create a fine-grained PAT with `actions:write` scope on the target repo, use a GitHub App installation token, or use an OAuth token from `gh auth token` with sufficient access. Paste it as `GH_RUNNER_TOKEN`. Short-lived registration tokens from the GitHub UI are not supported in controller mode because each worker needs a fresh registration token.
 2. **Install** → paste this manifest into the wizard, set `GH_REPO_URL` (e.g. `https://github.com/my-org/my-repo`) and `GH_RUNNER_TOKEN`, pick a tier with SSD slot capacity, and choose `GH_RUNNER_WORKERS` for concurrency.
 3. **Start** → click Start on the plugin card; tierd materialises the controller container. The controller uses the SmoothNAS runtime socket to start worker containers. Each worker registers with GitHub as ephemeral, appears in the runner list while idle or running, handles one job, then exits and is removed with its workspace.
 4. **Use** → target the runners from a workflow:
@@ -38,12 +38,12 @@ Controller mode requires SmoothNAS' `runtime-control` plugin profile. That profi
 The worker path:
 
 1. Reads `GH_REPO_URL` / `GH_RUNNER_TOKEN` / `GH_RUNNER_LABELS` / `GH_RUNNER_GROUP` from env.
-2. Detects whether the supplied token is a PAT (prefix `ghp_` / `github_pat_`) or already a registration token.
-3. For PATs, calls the GitHub API:
+2. Detects whether the supplied token is a GitHub API token (`ghp_`, `github_pat_`, `gho_`, `ghu_`, or `ghs_`) or already a registration token.
+3. For API tokens, calls the GitHub API:
    - Repo URL → `POST /repos/{owner}/{repo}/actions/runners/registration-token`
    - Org URL → `POST /orgs/{org}/actions/runners/registration-token`
 4. Runs `./config.sh --url $GH_REPO_URL --token $REG_TOKEN --labels $GH_RUNNER_LABELS --runnergroup $GH_RUNNER_GROUP --name "smoothnas-${HOSTNAME}-..." --unattended --replace --ephemeral`.
-5. Traps `SIGTERM` / `SIGINT`; on receipt, fetches a removal token and runs `./config.sh remove --token $REM_TOKEN` before exiting.
+5. Traps `SIGTERM` / `SIGINT`; on receipt, fetches a removal token with the API credential and runs `./config.sh remove --token $REM_TOKEN` before exiting.
 6. Runs `./run.sh`; when the one job completes, the runner exits and the worker container is removed by the controller.
 
 The wrapper code is Go with unit tests covering the token-type heuristic, repo-vs-org URL parsing, Docker runtime helpers, and the GitHub API call shape against an `httptest` server.

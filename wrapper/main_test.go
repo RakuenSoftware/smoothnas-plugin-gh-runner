@@ -61,6 +61,8 @@ func TestClassifyToken(t *testing.T) {
 	}{
 		{"ghp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "pat"},
 		{"github_pat_11ABCDEFG_aaaaaaaaaaaaaaaaaaaaaa", "pat"},
+		{"gho_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "pat"},
+		{"ghu_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "pat"},
 		{"ghs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "pat"},
 		{"AAAAAAAAAAAAAAAAAAAAAAAAAAAA", "regtoken"},
 		{"", "regtoken"},
