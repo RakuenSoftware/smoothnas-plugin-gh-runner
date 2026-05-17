@@ -37,6 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ steps.release.outputs.tag_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          gh workflow run release.yml --ref "$TAG_NAME"
+          gh workflow run release.yml --repo "$REPO" --ref "$TAG_NAME"
