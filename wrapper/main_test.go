@@ -426,6 +426,23 @@ func TestRemoveStaleGitHubRunnersDeletesOfflineSmoothNASRunners(t *testing.T) {
 	}
 }
 
+func TestStaleRunnerMatchesWorker(t *testing.T) {
+	stale := []githubRunner{
+		{Name: "smoothnas-490ef132d1b1-1779039937", Status: "offline"},
+		{Name: "smoothnas-other-1779039938", Status: "offline"},
+	}
+
+	if !staleRunnerMatchesWorker(stale, "490ef132d1b183469d9dbc67c4a2abaab31d701a735441cd736b79852671a275") {
+		t.Fatal("expected stale GitHub runner name to match worker container ID prefix")
+	}
+	if staleRunnerMatchesWorker(stale, "11111111111183469d9dbc67c4a2abaab31d701a735441cd736b79852671a275") {
+		t.Fatal("unexpected match for unrelated worker")
+	}
+	if staleRunnerMatchesWorker([]githubRunner{{Name: "smoothnas-490ef132d1b1x-1779039937"}}, "490ef132d1b183469d9dbc67c4a2abaab31d701a735441cd736b79852671a275") {
+		t.Fatal("unexpected partial-prefix match without separator")
+	}
+}
+
 func TestDeleteGitHubRunnerIgnoresAlreadyGone(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete || r.URL.Path != "/repos/owner/repo/actions/runners/42" {
