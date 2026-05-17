@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -511,6 +512,33 @@ func TestEnvBool(t *testing.T) {
 	t.Setenv("WRAPPER_BOOL_BAD", "maybe")
 	if !envBool("WRAPPER_BOOL_BAD", true) {
 		t.Fatal("invalid should return default")
+	}
+}
+
+func TestEnvList(t *testing.T) {
+	t.Setenv("WRAPPER_LIST", "1.1.1.1, 8.8.8.8\t9.9.9.9")
+	got := envList("WRAPPER_LIST", "4.4.4.4")
+	want := []string{"1.1.1.1", "8.8.8.8", "9.9.9.9"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("envList = %#v, want %#v", got, want)
+	}
+}
+
+func TestStabilizeContainerDNSWritesValidServers(t *testing.T) {
+	old := resolvConfPath
+	resolvConfPath = filepath.Join(t.TempDir(), "resolv.conf")
+	t.Cleanup(func() { resolvConfPath = old })
+
+	if err := stabilizeContainerDNS([]string{"1.1.1.1", "bad", "8.8.8.8"}); err != nil {
+		t.Fatalf("stabilizeContainerDNS: %v", err)
+	}
+	got, err := os.ReadFile(resolvConfPath)
+	if err != nil {
+		t.Fatalf("read resolv.conf: %v", err)
+	}
+	want := "nameserver 1.1.1.1\nnameserver 8.8.8.8\noptions timeout:1 attempts:2\n"
+	if string(got) != want {
+		t.Fatalf("resolv.conf = %q, want %q", string(got), want)
 	}
 }
 
