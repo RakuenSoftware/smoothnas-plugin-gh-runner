@@ -51,6 +51,8 @@ import (
 const (
 	defaultAPIBase    = "https://api.github.com"
 	defaultRunnerHome = "/home/runner"
+	runnerNamePrefix  = "smoothnas-"
+	maxRunnerNameLen  = 64
 )
 
 func main() {
@@ -88,13 +90,17 @@ func main() {
 	if hostname == "" {
 		hostname = "smoothnas-runner"
 	}
-	runnerName := "smoothnas-" + hostname
+	runnerName := runnerNameFromHostname(hostname)
 
-	configArgs := buildConfigArgs(repoURL, regToken, labels, group, runnerName, scope.IsOrg())
-	if err := runScript(ctx, runnerHome, "./config.sh", configArgs); err != nil {
-		log.Fatalf("config.sh: %v", err)
+	if runnerConfigured(runnerHome) {
+		log.Printf("runner already configured; starting existing registration")
+	} else {
+		configArgs := buildConfigArgs(repoURL, regToken, labels, group, runnerName, scope.IsOrg())
+		if err := runScript(ctx, runnerHome, "./config.sh", configArgs); err != nil {
+			log.Fatalf("config.sh: %v", err)
+		}
+		log.Printf("registered as %q", runnerName)
 	}
-	log.Printf("registered as %q", runnerName)
 
 	// run.sh is a long-running process; we wrap it in a child and
 	// proxy SIGTERM through. On exit we attempt to deregister.
@@ -110,6 +116,66 @@ func main() {
 		log.Printf("run.sh exited: %v", runErr)
 		os.Exit(1)
 	}
+}
+
+func runnerNameFromHostname(hostname string) string {
+	namePart := sanitizeRunnerNamePart(hostname)
+	if namePart == "" {
+		namePart = "runner"
+	}
+	if isHexID(namePart) && len(namePart) > 12 {
+		namePart = namePart[:12]
+	}
+	maxPartLen := maxRunnerNameLen - len(runnerNamePrefix)
+	if len(namePart) > maxPartLen {
+		namePart = namePart[:maxPartLen]
+	}
+	return runnerNamePrefix + namePart
+}
+
+func sanitizeRunnerNamePart(value string) string {
+	value = strings.TrimSpace(value)
+	var b strings.Builder
+	lastDash := false
+	for _, r := range value {
+		allowed := (r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') ||
+			r == '-' || r == '_' || r == '.'
+		if allowed {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(b.String(), "-")
+}
+
+func isHexID(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if (r >= '0' && r <= '9') ||
+			(r >= 'a' && r <= 'f') ||
+			(r >= 'A' && r <= 'F') {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func runnerConfigured(runnerHome string) bool {
+	if runnerHome == "" {
+		runnerHome = "."
+	}
+	_, err := os.Stat(runnerHome + "/.runner")
+	return err == nil
 }
 
 // scope identifies whether GH_REPO_URL targets a single repo or an

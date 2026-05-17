@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -154,6 +155,52 @@ func TestBuildConfigArgs(t *testing.T) {
 			t.Errorf("got %v, want %v", got, want)
 		}
 	})
+}
+
+func TestRunnerNameFromHostname(t *testing.T) {
+	t.Run("shortens container id hostnames", func(t *testing.T) {
+		got := runnerNameFromHostname("31df9337080579e1f4c3c75029d8debe0570018afc174dbc5cc4bce8a7d3ea50")
+		if got != "smoothnas-31df93370805" {
+			t.Fatalf("name = %q", got)
+		}
+	})
+
+	t.Run("caps long non-hex hostnames", func(t *testing.T) {
+		got := runnerNameFromHostname(strings.Repeat("host", 30))
+		if len(got) > maxRunnerNameLen {
+			t.Fatalf("name length = %d, want <= %d: %q", len(got), maxRunnerNameLen, got)
+		}
+		if !strings.HasPrefix(got, runnerNamePrefix) {
+			t.Fatalf("name = %q, missing prefix", got)
+		}
+	})
+
+	t.Run("sanitizes invalid characters", func(t *testing.T) {
+		got := runnerNameFromHostname(`bad/name:with*chars?`)
+		if got != "smoothnas-bad-name-with-chars" {
+			t.Fatalf("name = %q", got)
+		}
+	})
+
+	t.Run("empty uses fallback", func(t *testing.T) {
+		got := runnerNameFromHostname("  ")
+		if got != "smoothnas-runner" {
+			t.Fatalf("name = %q", got)
+		}
+	})
+}
+
+func TestRunnerConfigured(t *testing.T) {
+	dir := t.TempDir()
+	if runnerConfigured(dir) {
+		t.Fatal("fresh directory should not be configured")
+	}
+	if err := os.WriteFile(dir+"/.runner", []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !runnerConfigured(dir) {
+		t.Fatal("directory with .runner should be configured")
+	}
 }
 
 func TestMintRegistrationToken_Repo(t *testing.T) {

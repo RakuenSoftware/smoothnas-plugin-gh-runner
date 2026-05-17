@@ -75,7 +75,11 @@ RUN /home/runner/bin/installdependencies.sh \
 
 COPY --from=wrapper-build /smoothnas-wrapper /usr/local/bin/smoothnas-wrapper
 
-USER runner
+# SmoothNAS creates plugin bind-mount directories as root. Run the
+# wrapper as root so the mounted workspace is writable inside the LXC
+# container; RUNNER_ALLOW_RUNASROOT above permits the actions runner
+# to operate in this appliance runtime.
+USER root
 WORKDIR /home/runner
 
 # The wrapper handles registration, run.sh exec, and SIGTERM
