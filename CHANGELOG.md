@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.2...v0.3.3) (2026-05-17)
+
+
+### Bug Fixes
+
+* clean stale github runner registrations ([#13](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/13)) ([87d9b86](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/87d9b865f23b9a5a50d92106719f8ec26e83f5b7))
+
 ## [0.3.2](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.1...v0.3.2) (2026-05-17)
 
 
