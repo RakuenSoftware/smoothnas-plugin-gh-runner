@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.2.3...v0.3.0) (2026-05-17)
+
+
+### Features
+
+* run github actions workers ephemerally ([91dd302](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/91dd302dac42cda9a36cc5e1f86490e50b2d7234))
+
 ## [0.2.3](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.2.2...v0.2.3) (2026-05-17)
 
 
