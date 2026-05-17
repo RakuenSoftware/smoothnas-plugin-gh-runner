@@ -493,9 +493,10 @@ func runController(ctx context.Context, cfg config) error {
 			if err != nil {
 				log.Printf("cleanup stale github runners: %v", err)
 			} else {
-				if err := removeOrphanedLocalWorkers(ctx, dc, cfg, runners, time.Now()); err != nil {
-					log.Printf("cleanup orphaned local workers: %v", err)
-				}
+				// A local worker with no matching GitHub runner is inconvenient,
+				// but killing it during GitHub API/DNS instability can strand an
+				// assigned job as offline+busy. Prefer leaking an idle worker until
+				// the next ephemeral cycle over interrupting a possibly assigned one.
 				stale := staleGitHubRunners(runners)
 				if err := removeStaleLocalWorkers(ctx, dc, cfg, stale); err != nil {
 					log.Printf("cleanup stale local workers: %v", err)
