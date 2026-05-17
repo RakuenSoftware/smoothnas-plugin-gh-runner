@@ -53,6 +53,7 @@ import (
 const (
 	defaultAPIBase    = "https://api.github.com"
 	defaultRunnerHome = "/home/runner"
+	defaultDNSServers = "1.1.1.1,8.8.8.8"
 	runnerNamePrefix  = "smoothnas-"
 	maxRunnerNameLen  = 64
 	recycleDelay      = 10 * time.Second
@@ -61,6 +62,8 @@ const (
 	staleSweepEvery   = 1 * time.Minute
 	registrationGrace = 2 * time.Minute
 )
+
+var resolvConfPath = "/etc/resolv.conf"
 
 type config struct {
 	mode          string
@@ -77,12 +80,16 @@ type config struct {
 	dockerHost    string
 	workerImage   string
 	bindWorkspace bool
+	dnsServers    []string
 }
 
 func main() {
 	cfg, err := loadConfig()
 	if err != nil {
 		log.Fatal(err)
+	}
+	if err := stabilizeContainerDNS(cfg.dnsServers); err != nil {
+		log.Printf("stabilize container dns: %v", err)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -147,7 +154,29 @@ func loadConfig() (config, error) {
 		dockerHost:    envOr("DOCKER_HOST", defaultDockerHost),
 		workerImage:   os.Getenv("GH_RUNNER_WORKER_IMAGE"),
 		bindWorkspace: envBool("GH_RUNNER_BIND_WORKSPACE", false),
+		dnsServers:    envList("GH_RUNNER_DNS_SERVERS", defaultDNSServers),
 	}, nil
+}
+
+func stabilizeContainerDNS(servers []string) error {
+	if len(servers) == 0 {
+		return nil
+	}
+	var valid []string
+	for _, server := range servers {
+		if ip := net.ParseIP(server); ip != nil {
+			valid = append(valid, server)
+		}
+	}
+	if len(valid) == 0 {
+		return nil
+	}
+	var b strings.Builder
+	for _, server := range valid {
+		fmt.Fprintf(&b, "nameserver %s\n", server)
+	}
+	b.WriteString("options timeout:1 attempts:2\n")
+	return os.WriteFile(resolvConfPath, []byte(b.String()), 0o644)
 }
 
 func runPersistent(ctx context.Context, cfg config) error {
@@ -570,6 +599,7 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		"GH_API_BASE=" + cfg.apiBase,
 		"GH_RUNNER_EPHEMERAL=true",
 		"RUNNER_HOME=" + cfg.runnerHome,
+		"GH_RUNNER_DNS_SERVERS=" + strings.Join(cfg.dnsServers, ","),
 	}
 	req := createContainerRequest{
 		Image:  image,
@@ -1211,6 +1241,19 @@ func envOr(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func envList(k, def string) []string {
+	raw := envOr(k, def)
+	var out []string
+	for _, part := range strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t' || r == '\n'
+	}) {
+		if v := strings.TrimSpace(part); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func envBool(k string, def bool) bool {
