@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.10](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.9...v0.3.10) (2026-05-17)
+
+
+### Bug Fixes
+
+* default to one runner worker ([f3b4cf5](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/f3b4cf515d2452249b87c38dabf1441f81895f46))
+* default to one runner worker ([8ad6334](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/8ad6334daffc859a12737a51fc40e8d9aa9a9caf))
+
 ## [0.3.9](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.8...v0.3.9) (2026-05-17)
 
 
