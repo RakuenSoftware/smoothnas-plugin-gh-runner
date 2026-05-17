@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.6](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.5...v0.3.6) (2026-05-17)
+
+
+### Bug Fixes
+
+* reap offline runner workers ([#19](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/19)) ([6b96cc3](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/6b96cc39f39f0463fdc906389ab5d395c6db9fee))
+
 ## [0.3.5](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.4...v0.3.5) (2026-05-17)
 
 
