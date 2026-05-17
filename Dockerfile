@@ -1,5 +1,5 @@
-# SmoothNAS plugin: GitHub Actions self-hosted runner with
-# registration-shim wrapper.
+# SmoothNAS plugin: GitHub Actions ephemeral runner controller and
+# one-shot worker image.
 #
 # Built FROM ubuntu:22.04 — no upstream "official" actions/runner
 # image exists, so we install the runner tarball ourselves at known
@@ -31,7 +31,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
-# GitHub API calls; git/ca-certs/tar/sudo because the runner expects
+# GitHub + runtime API calls; git/ca-certs/tar/sudo because the runner expects
 # them; libicu for the .NET-based runner host).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -82,8 +82,7 @@ COPY --from=wrapper-build /smoothnas-wrapper /usr/local/bin/smoothnas-wrapper
 USER root
 WORKDIR /home/runner
 
-# The wrapper handles registration, run.sh exec, and SIGTERM
-# deregistration. SmoothNAS injects GH_REPO_URL / GH_RUNNER_TOKEN /
-# GH_RUNNER_LABELS / GH_RUNNER_GROUP into the container env from the
-# manifest's config block.
+# The wrapper defaults to controller mode. Worker containers set
+# GH_RUNNER_MODE=worker and use the same image to register an
+# ephemeral one-job GitHub Actions runner.
 ENTRYPOINT ["/usr/local/bin/smoothnas-wrapper"]

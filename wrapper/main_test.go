@@ -127,7 +127,7 @@ func TestGhEndpoint(t *testing.T) {
 
 func TestBuildConfigArgs(t *testing.T) {
 	t.Run("repo scope omits runnergroup", func(t *testing.T) {
-		got := buildConfigArgs("https://github.com/owner/repo", "REG", "self-hosted,smoothnas", "default", "smoothnas-host", false)
+		got := buildConfigArgs("https://github.com/owner/repo", "REG", "self-hosted,smoothnas", "default", "smoothnas-host", false, false)
 		want := []string{
 			"--url", "https://github.com/owner/repo",
 			"--token", "REG",
@@ -140,8 +140,23 @@ func TestBuildConfigArgs(t *testing.T) {
 			t.Errorf("got %v, want %v", got, want)
 		}
 	})
+	t.Run("ephemeral adds one-shot flag", func(t *testing.T) {
+		got := buildConfigArgs("https://github.com/owner/repo", "REG", "self-hosted,smoothnas", "default", "smoothnas-host", false, true)
+		want := []string{
+			"--url", "https://github.com/owner/repo",
+			"--token", "REG",
+			"--labels", "self-hosted,smoothnas",
+			"--name", "smoothnas-host",
+			"--unattended",
+			"--replace",
+			"--ephemeral",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
 	t.Run("org scope appends runnergroup", func(t *testing.T) {
-		got := buildConfigArgs("https://github.com/my-org", "REG", "self-hosted,smoothnas", "default", "smoothnas-host", true)
+		got := buildConfigArgs("https://github.com/my-org", "REG", "self-hosted,smoothnas", "default", "smoothnas-host", true, false)
 		want := []string{
 			"--url", "https://github.com/my-org",
 			"--token", "REG",
@@ -190,6 +205,25 @@ func TestRunnerNameFromHostname(t *testing.T) {
 	})
 }
 
+func TestRunnerNameWithSuffix(t *testing.T) {
+	t.Run("appends suffix", func(t *testing.T) {
+		got := runnerNameWithSuffix("smoothnas-host", "123-4")
+		if got != "smoothnas-host-123-4" {
+			t.Fatalf("name = %q", got)
+		}
+	})
+
+	t.Run("caps length", func(t *testing.T) {
+		got := runnerNameWithSuffix(runnerNamePrefix+strings.Repeat("a", 80), "1234567890")
+		if len(got) > maxRunnerNameLen {
+			t.Fatalf("name length = %d, want <= %d: %q", len(got), maxRunnerNameLen, got)
+		}
+		if !strings.HasSuffix(got, "-1234567890") {
+			t.Fatalf("name = %q, missing suffix", got)
+		}
+	})
+}
+
 func TestRunnerConfigured(t *testing.T) {
 	dir := t.TempDir()
 	if runnerConfigured(dir) {
@@ -200,6 +234,28 @@ func TestRunnerConfigured(t *testing.T) {
 	}
 	if !runnerConfigured(dir) {
 		t.Fatal("directory with .runner should be configured")
+	}
+}
+
+func TestCleanupRunnerState(t *testing.T) {
+	dir := t.TempDir()
+	for _, rel := range []string{".runner", ".credentials", ".credentials_rsaparams", ".env", ".path", ".service"} {
+		if err := os.WriteFile(dir+"/"+rel, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, rel := range []string{"_work/_actions", "_work/_temp", "_work/_tool"} {
+		if err := os.MkdirAll(dir+"/"+rel+"/nested", 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := cleanupRunnerState(dir); err != nil {
+		t.Fatalf("cleanupRunnerState: %v", err)
+	}
+	for _, rel := range []string{".runner", ".credentials", ".credentials_rsaparams", ".env", ".path", ".service", "_work/_actions", "_work/_temp", "_work/_tool"} {
+		if _, err := os.Stat(dir + "/" + rel); !os.IsNotExist(err) {
+			t.Fatalf("%s still exists or stat failed with %v", rel, err)
+		}
 	}
 }
 
@@ -341,6 +397,54 @@ func TestEnvOr(t *testing.T) {
 	t.Setenv("WRAPPER_TEST_KEY", "explicit")
 	if got := envOr("WRAPPER_TEST_KEY", "fallback"); got != "explicit" {
 		t.Errorf("got %q, want explicit", got)
+	}
+}
+
+func TestEnvBool(t *testing.T) {
+	if !envBool("DEFINITELY_NOT_SET_GHRUNNER_BOOL", true) {
+		t.Fatal("unset true default returned false")
+	}
+	t.Setenv("WRAPPER_BOOL_TRUE", "yes")
+	if !envBool("WRAPPER_BOOL_TRUE", false) {
+		t.Fatal("yes should parse true")
+	}
+	t.Setenv("WRAPPER_BOOL_FALSE", "0")
+	if envBool("WRAPPER_BOOL_FALSE", true) {
+		t.Fatal("0 should parse false")
+	}
+	t.Setenv("WRAPPER_BOOL_BAD", "maybe")
+	if !envBool("WRAPPER_BOOL_BAD", true) {
+		t.Fatal("invalid should return default")
+	}
+}
+
+func TestEnvInt(t *testing.T) {
+	if got := envInt("DEFINITELY_NOT_SET_GHRUNNER_INT", 4); got != 4 {
+		t.Fatalf("unset default = %d, want 4", got)
+	}
+	t.Setenv("WRAPPER_INT", "7")
+	if got := envInt("WRAPPER_INT", 4); got != 7 {
+		t.Fatalf("parsed = %d, want 7", got)
+	}
+	t.Setenv("WRAPPER_INT_BAD", "many")
+	if got := envInt("WRAPPER_INT_BAD", 4); got != 4 {
+		t.Fatalf("invalid = %d, want default", got)
+	}
+}
+
+func TestHostMountSource(t *testing.T) {
+	var inspect containerInspect
+	inspect.Mounts = append(inspect.Mounts, struct {
+		Source      string `json:"Source"`
+		Destination string `json:"Destination"`
+	}{Source: "/host/work", Destination: "/home/runner/_work"})
+
+	got, err := hostMountSource(inspect, "/home/runner/_work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "/host/work" {
+		t.Fatalf("source = %q, want /host/work", got)
 	}
 }
 

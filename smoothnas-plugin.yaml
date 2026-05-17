@@ -5,10 +5,10 @@
 # image. The bare-tag form here is suitable for development sideloads
 # against an unreleased build.
 #
-# Multiple instances: this is the first reference plugin where
-# count > 1 matters. The volumes[].perInstance flag makes each runner
-# get its own workspace under
-# /mnt/<tier>/.plugins/gh-runner/instance-<n>/workspace/.
+# The plugin runs one controller container. That controller uses the
+# SmoothNAS runtime socket to start one-shot ephemeral runner worker
+# containers. Worker workspaces live under the tier-bound workspace
+# volume and are deleted when each worker exits.
 
 apiVersion: smoothnas.io/v1
 kind: Plugin
@@ -17,11 +17,11 @@ metadata:
   name: gh-runner
   version: 0.2.3 # x-release-please-version
   description: |
-    GitHub Actions self-hosted runner. Each instance registers itself
-    with the configured repo or org on container start and deregisters
-    cleanly on stop (SIGTERM trap calls config.sh remove). Outbound
-    network only: no ports exposed, no SmoothNAS UI to embed —
-    GitHub.com is the UI.
+    GitHub Actions ephemeral self-hosted runner controller. The
+    controller keeps a small pool of one-shot worker containers; each
+    worker registers with GitHub, runs one job, deregisters, and is
+    removed with its workspace. Outbound network only: no ports exposed,
+    no SmoothNAS UI to embed — GitHub.com is the UI.
   vendor: smoothnas
   homepage: https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner
 
@@ -35,8 +35,8 @@ container:
   restartPolicy: unless-stopped
 
 instances:
-  count: 2
-  configurable: true
+  count: 1
+  configurable: false
 
 volumes:
   - name: workspace
@@ -44,7 +44,7 @@ volumes:
     slot: SSD
     minSize: 100G
     bind: /home/runner/_work
-    perInstance: true
+    perInstance: false
 
 # No `ports`: runner is outbound-only.
 # No `ui`: GitHub.com is the UI; the install wizard skips the embed
@@ -52,6 +52,7 @@ volumes:
 
 profiles:
   - default-limits
+  - runtime-control
 
 config:
   - key: GH_REPO_URL
@@ -65,11 +66,10 @@ config:
     type: string
     secret: true
     description: |
-      Either a personal access token (recommended; token rotates
-      registration tokens automatically across restarts) or a
-      short-lived registration token from the repo/org runner
-      settings page. PATs are detected by the ghp_ / github_pat_
-      prefix.
+      Personal access token or GitHub App installation token used to
+      mint fresh registration tokens for ephemeral workers. Registration
+      tokens from the GitHub UI are not supported for controller mode
+      because each worker needs a new one-shot token.
   - key: GH_RUNNER_LABELS
     type: string
     default: "self-hosted,linux,x64,smoothnas"
@@ -78,3 +78,7 @@ config:
     type: string
     default: "default"
     description: Runner group name (org-level runners only; ignored at repo scope).
+  - key: GH_RUNNER_WORKERS
+    type: string
+    default: "2"
+    description: Number of ephemeral worker containers to keep available.
