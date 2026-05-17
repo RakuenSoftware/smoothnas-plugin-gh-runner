@@ -16,7 +16,7 @@ kind: Plugin
 
 metadata:
   name: gh-runner
-  version: 0.3.1 # x-release-please-version
+  version: 0.3.2 # x-release-please-version
   description: |
     GitHub Actions ephemeral self-hosted runner controller. The
     controller keeps a small pool of one-shot worker containers; each
@@ -28,7 +28,7 @@ metadata:
 
 artifact:
   type: oci-image
-  image: ghcr.io/rakuensoftware/smoothnas-plugin-gh-runner:0.3.1 # x-release-please-version
+  image: ghcr.io/rakuensoftware/smoothnas-plugin-gh-runner:0.3.2 # x-release-please-version
   # digest filled in by .github/workflows/release.yml at publish time.
 
 container:
