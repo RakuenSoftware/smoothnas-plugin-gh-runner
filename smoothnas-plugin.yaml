@@ -66,10 +66,10 @@ config:
     type: string
     secret: true
     description: |
-      Personal access token or GitHub App installation token used to
-      mint fresh registration tokens for ephemeral workers. Registration
-      tokens from the GitHub UI are not supported for controller mode
-      because each worker needs a new one-shot token.
+      Personal access token, GitHub App installation token, or GitHub
+      OAuth token used to mint fresh registration tokens for ephemeral
+      workers. Registration tokens from the GitHub UI are not supported
+      for controller mode because each worker needs a new one-shot token.
   - key: GH_RUNNER_LABELS
     type: string
     default: "self-hosted,linux,x64,smoothnas"

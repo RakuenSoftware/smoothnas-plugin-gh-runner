@@ -9,17 +9,16 @@
 //
 //  1. Reads GH_REPO_URL, GH_RUNNER_TOKEN, GH_RUNNER_LABELS,
 //     GH_RUNNER_GROUP from the environment.
-//  2. Detects whether GH_RUNNER_TOKEN is a personal access token
-//     (PAT, prefix ghp_ or github_pat_) or already a registration
-//     token. PATs let the wrapper exchange tokens itself, so a
-//     restart re-registers without operator intervention.
-//  3. For PATs, calls GitHub's API to fetch a registration token:
+//  2. Detects whether GH_RUNNER_TOKEN is a GitHub API token or already
+//     a registration token. API tokens let the wrapper exchange tokens
+//     itself, so a restart re-registers without operator intervention.
+//  3. For API tokens, calls GitHub's API to fetch a registration token:
 //     - repo URL  → POST /repos/{owner}/{repo}/actions/runners/registration-token
 //     - org URL   → POST /orgs/{org}/actions/runners/registration-token
 //  4. Runs ./config.sh with the resolved registration token,
 //     labels, group, and a runner name keyed off $HOSTNAME.
 //  5. Traps SIGTERM/SIGINT. On receipt, signals run.sh to wind down,
-//     fetches a removal token (PATs only — registration tokens are
+//     fetches a removal token (API tokens only — registration tokens are
 //     single-use and can't fetch a remove token), runs
 //     ./config.sh remove, and exits.
 //  6. Otherwise execs ./run.sh.
@@ -89,21 +88,21 @@ func main() {
 	switch cfg.mode {
 	case "controller":
 		if cfg.tokenKind != "pat" {
-			log.Fatal("controller mode requires a PAT or GitHub App token so workers can mint fresh registration tokens")
+			log.Fatal("controller mode requires a GitHub API token so workers can mint fresh registration tokens")
 		}
 		if err := runController(ctx, cfg); err != nil && !errors.Is(err, context.Canceled) {
 			log.Fatal(err)
 		}
 	case "worker":
 		if cfg.tokenKind != "pat" {
-			log.Fatal("worker mode requires a PAT or GitHub App token so the runner can mint fresh registration tokens")
+			log.Fatal("worker mode requires a GitHub API token so the runner can mint fresh registration tokens")
 		}
 		if err := runEphemeralOnce(ctx, cfg); err != nil && !errors.Is(err, context.Canceled) {
 			log.Fatal(err)
 		}
 	case "loop":
 		if cfg.tokenKind != "pat" {
-			log.Fatal("loop mode requires a PAT or GitHub App token so the wrapper can mint fresh registration tokens")
+			log.Fatal("loop mode requires a GitHub API token so the wrapper can mint fresh registration tokens")
 		}
 		runEphemeralLoop(ctx, cfg)
 	case "persistent":
@@ -753,15 +752,17 @@ func parseScope(raw string) (scope, error) {
 }
 
 // classifyToken returns "pat" if the supplied secret looks like a
-// GitHub personal access token, or "regtoken" otherwise. Detection
-// is heuristic — GitHub registration tokens have no published prefix
-// (they're opaque ~30-char base32-ish strings) but PATs carry stable
-// ghp_ / github_pat_ prefixes documented at
+// GitHub API token, or "regtoken" otherwise. Detection is heuristic:
+// GitHub registration tokens have no published prefix (they're opaque
+// ~30-char base32-ish strings), but GitHub API tokens carry stable
+// prefixes documented at
 // https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
 func classifyToken(token string) string {
 	switch {
 	case strings.HasPrefix(token, "ghp_"),
 		strings.HasPrefix(token, "github_pat_"),
+		strings.HasPrefix(token, "gho_"),
+		strings.HasPrefix(token, "ghu_"),
 		strings.HasPrefix(token, "ghs_"): // server-to-server (GitHub App installation) tokens — also work for the registration-token endpoint
 		return "pat"
 	default:
@@ -770,8 +771,8 @@ func classifyToken(token string) string {
 }
 
 // resolveRegistrationToken returns a usable runner registration
-// token. For PATs we POST to the registration-token endpoint to mint
-// one; for direct registration tokens we pass the supplied value
+// token. For API tokens we POST to the registration-token endpoint to
+// mint one; for direct registration tokens we pass the supplied value
 // through unchanged.
 func resolveRegistrationToken(ctx context.Context, client *http.Client, apiBase string, sc scope, token, kind string) (string, error) {
 	if kind != "pat" {
@@ -782,8 +783,8 @@ func resolveRegistrationToken(ctx context.Context, client *http.Client, apiBase 
 
 // mintRegistrationToken calls GitHub's runner registration-token
 // endpoint, which mints a fresh ~1h registration token for the
-// configured scope. The PAT must have actions:write (repo scope) or
-// admin:org scope (org scope).
+// configured scope. The API token must have actions:write (repo scope)
+// or admin:org scope (org scope).
 func mintRegistrationToken(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string) (string, error) {
 	endpoint, err := registrationTokenEndpoint(apiBase, sc)
 	if err != nil {
@@ -922,9 +923,9 @@ func runRunSh(ctx context.Context, dir string) error {
 
 // deregister attempts a graceful runner removal from GitHub. We do
 // this on shutdown regardless of cause: SIGTERM (most common) or
-// run.sh exiting on its own. For PATs we mint a fresh remove token
-// and call config.sh remove; for direct registration tokens we
-// can't (the API endpoint requires a PAT and the registration token
+// run.sh exiting on its own. For API tokens we mint a fresh remove
+// token and call config.sh remove; for direct registration tokens we
+// can't (the API endpoint requires an API token and the registration token
 // is single-use), so we log and exit, leaving the operator to clean
 // up via the GitHub UI.
 //
