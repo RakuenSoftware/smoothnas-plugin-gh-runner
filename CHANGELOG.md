@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.1...v0.3.2) (2026-05-17)
+
+
+### Bug Fixes
+
+* use ephemeral worker workspaces by default ([408195e](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/408195e5ff4adae9b28b7113dbf61912d46a7c62))
+
 ## [0.3.1](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.0...v0.3.1) (2026-05-17)
 
 
