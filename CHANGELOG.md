@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.8](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.7...v0.3.8) (2026-05-17)
+
+
+### Bug Fixes
+
+* avoid reaping unregistered workers during cleanup ([59bd33f](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/59bd33f5d7ad2fce21be83dcd68fda11f77ffaa6))
+* avoid reaping unregistered workers during cleanup ([fdcaac2](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/fdcaac2c3a2683e6618b41a623326359b200027d))
+
 ## [0.3.7](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.6...v0.3.7) (2026-05-17)
 
 
