@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.7](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.6...v0.3.7) (2026-05-17)
+
+
+### Bug Fixes
+
+* preserve busy runners during cleanup ([ead3336](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/ead3336df1412ae471ab6db7fa5d4b02fdcc0915))
+* preserve busy runners during cleanup ([999c949](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/999c949316fcd3981aa6ced166360fde1240a3db))
+
 ## [0.3.6](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.5...v0.3.6) (2026-05-17)
 
 
