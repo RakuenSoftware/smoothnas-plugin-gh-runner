@@ -392,6 +392,55 @@ func TestMintRemoveToken_HitsRemoveEndpoint(t *testing.T) {
 	}
 }
 
+func TestRemoveStaleGitHubRunnersDeletesOfflineSmoothNASRunners(t *testing.T) {
+	var deletes []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/orgs/my-org/actions/runners":
+			if r.URL.Query().Get("per_page") != "100" {
+				t.Errorf("per_page = %q", r.URL.Query().Get("per_page"))
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"runners": []map[string]any{
+					{"id": 1, "name": "smoothnas-dead", "status": "offline", "busy": true},
+					{"id": 2, "name": "smoothnas-live", "status": "online", "busy": false},
+					{"id": 3, "name": "other-dead", "status": "offline", "busy": false},
+				},
+			})
+		case r.Method == http.MethodDelete:
+			deletes = append(deletes, r.URL.Path)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer srv.Close()
+
+	err := removeStaleGitHubRunners(context.Background(), srv.Client(), srv.URL, scope{owner: "my-org"}, "ghp_xxx")
+	if err != nil {
+		t.Fatalf("removeStaleGitHubRunners: %v", err)
+	}
+	want := []string{"/orgs/my-org/actions/runners/1"}
+	if !reflect.DeepEqual(deletes, want) {
+		t.Fatalf("deletes = %v, want %v", deletes, want)
+	}
+}
+
+func TestDeleteGitHubRunnerIgnoresAlreadyGone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || r.URL.Path != "/repos/owner/repo/actions/runners/42" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	err := deleteGitHubRunner(context.Background(), srv.Client(), srv.URL, scope{owner: "owner", repo: "repo"}, "ghp_xxx", 42)
+	if err != nil {
+		t.Fatalf("deleteGitHubRunner: %v", err)
+	}
+}
+
 func TestEnvOr(t *testing.T) {
 	if got := envOr("DEFINITELY_NOT_SET_GHRUNNER", "fallback"); got != "fallback" {
 		t.Errorf("got %q, want fallback", got)
