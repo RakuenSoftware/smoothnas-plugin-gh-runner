@@ -472,6 +472,64 @@ func TestWorkerRegistrationGraceExpired(t *testing.T) {
 	}
 }
 
+func TestOrphanedLocalWorker(t *testing.T) {
+	now := time.Unix(500, 0)
+	workerID := "490ef132d1b183469d9dbc67c4a2abaab31d701a735441cd736b79852671a275"
+
+	cases := []struct {
+		name    string
+		worker  containerSummary
+		runners []githubRunner
+		want    bool
+	}{
+		{
+			name: "running worker past grace without github runner",
+			worker: containerSummary{
+				ID:      workerID,
+				State:   "running",
+				Created: now.Add(-registrationGrace).Unix(),
+			},
+			want: true,
+		},
+		{
+			name: "running worker inside registration grace",
+			worker: containerSummary{
+				ID:      workerID,
+				State:   "running",
+				Created: now.Add(-registrationGrace + time.Second).Unix(),
+			},
+			want: false,
+		},
+		{
+			name: "running worker with matching github runner",
+			worker: containerSummary{
+				ID:      workerID,
+				State:   "running",
+				Created: now.Add(-registrationGrace).Unix(),
+			},
+			runners: []githubRunner{{Name: "smoothnas-490ef132d1b1-1779039937", Status: "online"}},
+			want:    false,
+		},
+		{
+			name: "exited worker is not orphan cleanup candidate",
+			worker: containerSummary{
+				ID:      workerID,
+				State:   "exited",
+				Created: now.Add(-registrationGrace).Unix(),
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := orphanedLocalWorker(tc.worker, tc.runners, now); got != tc.want {
+				t.Fatalf("orphanedLocalWorker = %t, want %t", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestDeleteGitHubRunnerIgnoresAlreadyGone(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete || r.URL.Path != "/repos/owner/repo/actions/runners/42" {
