@@ -522,10 +522,9 @@ func runController(ctx context.Context, cfg config) error {
 			if err != nil {
 				log.Printf("cleanup stale github runners: %v", err)
 			} else {
-				// A local worker with no matching GitHub runner is inconvenient,
-				// but killing it during GitHub API/DNS instability can strand an
-				// assigned job as offline+busy. Prefer leaking an idle worker until
-				// the next ephemeral cycle over interrupting a possibly assigned one.
+				if err := removeOrphanedLocalWorkers(ctx, dc, cfg, runners, time.Now()); err != nil {
+					log.Printf("cleanup orphaned local workers: %v", err)
+				}
 				stale := staleGitHubRunners(runners)
 				if err := removeStaleLocalWorkers(ctx, dc, cfg, stale); err != nil {
 					log.Printf("cleanup stale local workers: %v", err)
@@ -677,7 +676,7 @@ func removeOrphanedLocalWorkers(ctx context.Context, dc *dockerClient, cfg confi
 	}
 	for _, w := range workers {
 		name := containerName(w)
-		if w.State != "running" || workerHasGitHubRunner(runners, w.ID) || !workerRegistrationGraceExpired(w, now) {
+		if !orphanedLocalWorker(w, runners, now) {
 			continue
 		}
 		log.Printf("removing local worker %s with no github runner registration", name)
@@ -691,6 +690,12 @@ func removeOrphanedLocalWorkers(ctx context.Context, dc *dockerClient, cfg confi
 		removeWorkerHostWorkspace(cfg, name)
 	}
 	return nil
+}
+
+func orphanedLocalWorker(w containerSummary, runners []githubRunner, now time.Time) bool {
+	return w.State == "running" &&
+		!workerHasGitHubRunner(runners, w.ID) &&
+		workerRegistrationGraceExpired(w, now)
 }
 
 func staleRunnerMatchesWorker(stale []githubRunner, workerID string) bool {
