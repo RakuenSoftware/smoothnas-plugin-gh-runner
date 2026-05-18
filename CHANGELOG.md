@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.11](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.10...v0.3.11) (2026-05-18)
+
+
+### Bug Fixes
+
+* preserve runtime dns by default ([#29](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/29)) ([bdd4a0d](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/bdd4a0defd113aafa57a57d044d07c5fc2860379))
+
 ## [0.3.10](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.9...v0.3.10) (2026-05-17)
 
 
