@@ -53,7 +53,6 @@ import (
 const (
 	defaultAPIBase    = "https://api.github.com"
 	defaultRunnerHome = "/home/runner"
-	defaultDNSServers = "1.1.1.1,8.8.8.8"
 	defaultWorkers    = 1
 	runnerNamePrefix  = "smoothnas-"
 	maxRunnerNameLen  = 64
@@ -155,7 +154,7 @@ func loadConfig() (config, error) {
 		dockerHost:    envOr("DOCKER_HOST", defaultDockerHost),
 		workerImage:   os.Getenv("GH_RUNNER_WORKER_IMAGE"),
 		bindWorkspace: envBool("GH_RUNNER_BIND_WORKSPACE", false),
-		dnsServers:    envList("GH_RUNNER_DNS_SERVERS", defaultDNSServers),
+		dnsServers:    envList("GH_RUNNER_DNS_SERVERS", ""),
 	}, nil
 }
 
@@ -600,7 +599,9 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		"GH_API_BASE=" + cfg.apiBase,
 		"GH_RUNNER_EPHEMERAL=true",
 		"RUNNER_HOME=" + cfg.runnerHome,
-		"GH_RUNNER_DNS_SERVERS=" + strings.Join(cfg.dnsServers, ","),
+	}
+	if len(cfg.dnsServers) > 0 {
+		env = append(env, "GH_RUNNER_DNS_SERVERS="+strings.Join(cfg.dnsServers, ","))
 	}
 	req := createContainerRequest{
 		Image:  image,
