@@ -5,10 +5,8 @@ name: release
 #
 # Single image (no variants — gh-runner is GPU-agnostic and the
 # actions/runner tarball version is pinned in the Dockerfile). The
-# pushed image digest is read back from buildx and spliced into the
-# manifest's artifact.digest before the manifest is attached to the
-# GitHub release. Operators downloading the manifest get a
-# digest-pinned image reference, not a moving tag.
+# release manifest keeps the semver image tag so SmoothNAS updates
+# install the latest published plugin version.
 
 on:
   workflow_dispatch:
@@ -37,8 +35,6 @@ jobs:
   publish:
     needs: test
     runs-on: ubuntu-latest
-    outputs:
-      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v6
 
@@ -64,15 +60,12 @@ jobs:
         run: echo "ref=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]'):${{ steps.version.outputs.version }}" >> "$GITHUB_OUTPUT"
 
       - name: Build + push
-        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           tags: |
             ${{ steps.image.outputs.ref }}
-          # buildx pushes a manifest list; the digest output here is
-          # the index digest, which is what we pin in the manifest.
           provenance: false
 
   release:
@@ -85,28 +78,16 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Render manifest with pinned digest
-        env:
-          DIGEST: ${{ needs.publish.outputs.digest }}
+      - name: Stage release manifest
         run: |
           set -euo pipefail
           mkdir -p release
-          # Splice the digest into artifact.image: image@sha256:...
-          # The CI rewrites the bare-tag form the manifest carries in
-          # dev so installs against released artifacts always pin to
-          # a digest.
-          python3 - <<EOF
-          import re
-          with open("smoothnas-plugin.yaml") as f: m = f.read()
-          ref_re = re.compile(r'(image:\s*ghcr\.io/[^\n]+?)(\n|$)')
-          m2 = ref_re.sub(r'\1@${DIGEST}\2', m, count=1)
-          with open("release/smoothnas-plugin.yaml", "w") as f: f.write(m2)
-          EOF
+          cp smoothnas-plugin.yaml release/smoothnas-plugin.yaml
           ls -l release/
 
       # release-please created the GitHub release with its own
       # conventional-commit-derived notes when the release PR merged.
-      # We just attach the digest-pinned manifest as a release asset.
+      # We just attach the semver-tagged manifest as a release asset.
       # generate_release_notes is left at its default (false) so we
       # don't overwrite release-please's notes.
       - name: Attach manifest to release

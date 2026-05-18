@@ -1,9 +1,8 @@
 # SmoothNAS plugin manifest for the GitHub Actions self-hosted runner.
 #
-# The release workflow rewrites artifact.digest at publish time so the
-# manifest distributed via GitHub releases pins to a real uploaded
-# image. The bare-tag form here is suitable for development sideloads
-# against an unreleased build.
+# GitHub releases publish this manifest with the semver image tag. The
+# SmoothNAS catalog installs the newest release version, and the image
+# reference should stay tag-based instead of digest-pinned.
 #
 # The plugin runs one controller container. That controller uses the
 # SmoothNAS runtime socket to start one-shot ephemeral runner worker
@@ -29,7 +28,6 @@ metadata:
 artifact:
   type: oci-image
   image: ghcr.io/rakuensoftware/smoothnas-plugin-gh-runner:0.3.12 # x-release-please-version
-  # digest filled in by .github/workflows/release.yml at publish time.
 
 container:
   command: []
