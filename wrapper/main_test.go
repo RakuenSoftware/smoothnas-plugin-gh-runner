@@ -393,7 +393,7 @@ func TestMintRemoveToken_HitsRemoveEndpoint(t *testing.T) {
 	}
 }
 
-func TestRemoveStaleGitHubRunnersDeletesOnlyIdleOfflineSmoothNASRunners(t *testing.T) {
+func TestRemoveStaleGitHubRunnersDeletesOfflineSmoothNASRunners(t *testing.T) {
 	var deletes []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -422,7 +422,7 @@ func TestRemoveStaleGitHubRunnersDeletesOnlyIdleOfflineSmoothNASRunners(t *testi
 	if err != nil {
 		t.Fatalf("removeStaleGitHubRunners: %v", err)
 	}
-	want := []string{"/orgs/my-org/actions/runners/4"}
+	want := []string{"/orgs/my-org/actions/runners/1", "/orgs/my-org/actions/runners/4"}
 	if !reflect.DeepEqual(deletes, want) {
 		t.Fatalf("deletes = %v, want %v", deletes, want)
 	}
