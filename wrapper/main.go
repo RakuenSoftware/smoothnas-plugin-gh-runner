@@ -1045,8 +1045,7 @@ func deleteStaleGitHubRunners(ctx context.Context, client *http.Client, apiBase 
 func staleSmoothNASRunner(runner githubRunner) bool {
 	return runner.ID > 0 &&
 		strings.HasPrefix(runner.Name, runnerNamePrefix) &&
-		strings.EqualFold(runner.Status, "offline") &&
-		!runner.Busy
+		strings.EqualFold(runner.Status, "offline")
 }
 
 func listGitHubRunners(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string) ([]githubRunner, error) {
