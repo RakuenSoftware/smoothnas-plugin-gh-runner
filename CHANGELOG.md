@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.12](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.11...v0.3.12) (2026-05-18)
+
+
+### Bug Fixes
+
+* recycle orphaned runner workers ([#31](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/31)) ([929d59f](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/929d59fbc09ee87982dc7e6ffc411a29b250b47e))
+* remove offline runner registrations ([#33](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/33)) ([7f486d7](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/7f486d7f3dfe76f5f6069cd941e31455c5a93826))
+
 ## [0.3.11](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.10...v0.3.11) (2026-05-18)
 
 
