@@ -556,6 +556,9 @@ func TestLoadConfigDefaultsToEphemeralWorkerWorkspace(t *testing.T) {
 	if cfg.workerCount != defaultWorkers {
 		t.Fatalf("workerCount default = %d, want %d", cfg.workerCount, defaultWorkers)
 	}
+	if len(cfg.dnsServers) != 0 {
+		t.Fatalf("dnsServers default = %#v, want empty so runtime resolv.conf is preserved", cfg.dnsServers)
+	}
 
 	t.Setenv("GH_RUNNER_BIND_WORKSPACE", "true")
 	cfg, err = loadConfig()
