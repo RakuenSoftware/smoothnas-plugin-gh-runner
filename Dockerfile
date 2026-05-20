@@ -114,6 +114,17 @@ USER root
 RUN /home/runner/bin/installdependencies.sh \
  && rm -rf /var/lib/apt/lists/*
 
+# Keep a root-owned copy outside the runner home. SmoothNAS worker
+# containers must always expose GitHub's JavaScript action runtimes at
+# /home/runner/externals, and the wrapper restores them from here if the
+# runner home is damaged during an ephemeral job.
+RUN set -eux; \
+    for major in 20 24; do \
+      install -D -m 0755 \
+        "/home/runner/externals/node${major}/bin/node" \
+        "/opt/actions-node-runtimes/node${major}/bin/node"; \
+    done
+
 COPY --from=wrapper-build /smoothnas-wrapper /usr/local/bin/smoothnas-wrapper
 
 # SmoothNAS creates plugin bind-mount directories as root. Run the

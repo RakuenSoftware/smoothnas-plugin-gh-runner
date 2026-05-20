@@ -262,6 +262,45 @@ func TestCleanupRunnerState(t *testing.T) {
 	}
 }
 
+func TestEnsureActionNodeRuntimesRestoresMissingNodes(t *testing.T) {
+	backup := t.TempDir()
+	runnerHome := t.TempDir()
+	oldBackup := nodeRuntimeBackup
+	nodeRuntimeBackup = backup
+	t.Cleanup(func() { nodeRuntimeBackup = oldBackup })
+
+	for _, major := range []string{"20", "24"} {
+		path := filepath.Join(backup, "node"+major, "bin", "node")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := ensureActionNodeRuntimes(runnerHome); err != nil {
+		t.Fatalf("ensureActionNodeRuntimes: %v", err)
+	}
+	for _, major := range []string{"20", "24"} {
+		path := filepath.Join(runnerHome, "externals", "node"+major, "bin", "node")
+		if !executableFile(path) {
+			t.Fatalf("node %s runtime was not restored executable at %s", major, path)
+		}
+	}
+}
+
+func TestEnsureActionNodeRuntimesErrorsWhenBackupMissing(t *testing.T) {
+	oldBackup := nodeRuntimeBackup
+	nodeRuntimeBackup = t.TempDir()
+	t.Cleanup(func() { nodeRuntimeBackup = oldBackup })
+
+	err := ensureActionNodeRuntimes(t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "backup Node 20 runtime missing") {
+		t.Fatalf("error = %v, want missing backup Node 20", err)
+	}
+}
+
 func TestMintRegistrationToken_Repo(t *testing.T) {
 	var got struct {
 		method string
