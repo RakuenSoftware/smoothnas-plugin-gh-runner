@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.16](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.15...v0.3.16) (2026-05-20)
+
+
+### Bug Fixes
+
+* rotate workers with stale resource limits ([#42](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/42)) ([228cfa5](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/228cfa5a1648f9e0fa446b9cbcee30e90c97c52d))
+* run gh-runner workers on debian 13 ([#44](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/44)) ([58f59bf](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/58f59bf153c837d248f6232dc566ffec102c9e2a))
+
 ## [0.3.15](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.14...v0.3.15) (2026-05-20)
 
 
