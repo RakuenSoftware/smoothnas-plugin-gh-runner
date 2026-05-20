@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.15](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.14...v0.3.15) (2026-05-20)
+
+
+### Bug Fixes
+
+* shrink idle runner workers ([1130d45](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/1130d45207ae82358d712ba2a65c34dcd3135bdd))
+* shrink idle runner workers ([1a3e0bc](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/1a3e0bcdcf08b347c551b86123d0940cac4b9b60))
+
 ## [0.3.14](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.13...v0.3.14) (2026-05-20)
 
 
