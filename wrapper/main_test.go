@@ -603,6 +603,8 @@ func TestStabilizeContainerDNSWritesValidServers(t *testing.T) {
 func TestLoadConfigDefaultsToEphemeralWorkerWorkspace(t *testing.T) {
 	t.Setenv("GH_REPO_URL", "https://github.com/owner/repo")
 	t.Setenv("GH_RUNNER_TOKEN", "ghp_xxx")
+	t.Setenv("GH_RUNNER_CPUS", "2.5")
+	t.Setenv("GH_RUNNER_MEMORY", "8GiB")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -616,6 +618,12 @@ func TestLoadConfigDefaultsToEphemeralWorkerWorkspace(t *testing.T) {
 	}
 	if len(cfg.dnsServers) != 0 {
 		t.Fatalf("dnsServers default = %#v, want empty so runtime resolv.conf is preserved", cfg.dnsServers)
+	}
+	if cfg.workerCPUs != 2.5 {
+		t.Fatalf("workerCPUs = %g, want 2.5", cfg.workerCPUs)
+	}
+	if cfg.workerMemory != 8<<30 {
+		t.Fatalf("workerMemory = %d, want %d", cfg.workerMemory, int64(8<<30))
 	}
 
 	t.Setenv("GH_RUNNER_BIND_WORKSPACE", "true")
@@ -639,6 +647,92 @@ func TestEnvInt(t *testing.T) {
 	t.Setenv("WRAPPER_INT_BAD", "many")
 	if got := envInt("WRAPPER_INT_BAD", 4); got != 4 {
 		t.Fatalf("invalid = %d, want default", got)
+	}
+}
+
+func TestEnvFloat(t *testing.T) {
+	if got := envFloat("DEFINITELY_NOT_SET_GHRUNNER_FLOAT", 4.5); got != 4.5 {
+		t.Fatalf("unset default = %g, want 4.5", got)
+	}
+	t.Setenv("WRAPPER_FLOAT", "2.25")
+	if got := envFloat("WRAPPER_FLOAT", 1); got != 2.25 {
+		t.Fatalf("parsed = %g, want 2.25", got)
+	}
+	t.Setenv("WRAPPER_FLOAT_BAD", "many")
+	if got := envFloat("WRAPPER_FLOAT_BAD", 1.5); got != 1.5 {
+		t.Fatalf("invalid = %g, want default", got)
+	}
+}
+
+func TestParseByteSize(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int64
+	}{
+		{"0", 0},
+		{"512", 512},
+		{"128MiB", 128 << 20},
+		{"1.5GiB", int64(1.5 * float64(1<<30))},
+		{"2 gb", 2 << 30},
+	}
+	for _, tc := range cases {
+		t.Run(tc.in, func(t *testing.T) {
+			got, err := parseByteSize(tc.in)
+			if err != nil {
+				t.Fatalf("parseByteSize: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %d, want %d", got, tc.want)
+			}
+		})
+	}
+	if _, err := parseByteSize("8XB"); err == nil {
+		t.Fatal("unsupported unit should fail")
+	}
+}
+
+func TestStartWorkerAppliesResourceLimits(t *testing.T) {
+	var created createContainerRequest
+	var started string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/containers/create"):
+			if err := json.NewDecoder(r.Body).Decode(&created); err != nil {
+				t.Fatalf("decode create body: %v", err)
+			}
+			_ = json.NewEncoder(w).Encode(createContainerResponse{ID: "worker-1"})
+		case r.Method == http.MethodPost && r.URL.Path == "/containers/worker-1/start":
+			started = "worker-1"
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer srv.Close()
+
+	cfg := config{
+		repoURL:      "https://github.com/owner/repo",
+		token:        "ghp_xxx",
+		labels:       "self-hosted,smoothnas",
+		group:        "default",
+		apiBase:      defaultAPIBase,
+		runnerHome:   defaultRunnerHome,
+		workerCPUs:   2.5,
+		workerMemory: 8 << 30,
+	}
+	dc := &dockerClient{base: srv.URL, client: srv.Client()}
+
+	if err := startWorker(context.Background(), dc, cfg, "runner-image", "", "bridge"); err != nil {
+		t.Fatalf("startWorker: %v", err)
+	}
+	if started != "worker-1" {
+		t.Fatalf("started = %q, want worker-1", started)
+	}
+	if created.HostConfig.NanoCPUs != 2_500_000_000 {
+		t.Fatalf("NanoCPUs = %d, want 2500000000", created.HostConfig.NanoCPUs)
+	}
+	if created.HostConfig.Memory != 8<<30 {
+		t.Fatalf("Memory = %d, want %d", created.HostConfig.Memory, int64(8<<30))
 	}
 }
 
