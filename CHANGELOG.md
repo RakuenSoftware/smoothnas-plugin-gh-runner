@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.18](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.17...v0.3.18) (2026-05-20)
+
+
+### Bug Fixes
+
+* release gh-runner node whiteout fix ([#50](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/50)) ([10e9528](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/10e95284e25706d2ac3d81e8fcf86f51bc755501))
+
 ## [0.3.17](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.16...v0.3.17) (2026-05-20)
 
 
