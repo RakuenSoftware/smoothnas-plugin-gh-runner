@@ -301,6 +301,50 @@ func TestEnsureActionNodeRuntimesErrorsWhenBackupMissing(t *testing.T) {
 	}
 }
 
+func TestActionNodeRuntimeRepairRestoresDuringWorkerLifetime(t *testing.T) {
+	backup := t.TempDir()
+	runnerHome := t.TempDir()
+	oldBackup := nodeRuntimeBackup
+	nodeRuntimeBackup = backup
+	t.Cleanup(func() { nodeRuntimeBackup = oldBackup })
+
+	for _, major := range []string{"20", "24"} {
+		path := filepath.Join(backup, "node"+major, "bin", "node")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stop := startActionNodeRuntimeRepair(ctx, runnerHome)
+	defer func() {
+		cancel()
+		stop()
+	}()
+
+	node24 := filepath.Join(runnerHome, "externals", "node24", "bin", "node")
+	waitForExecutable(t, node24)
+	if err := os.Remove(node24); err != nil {
+		t.Fatal(err)
+	}
+	waitForExecutable(t, node24)
+}
+
+func waitForExecutable(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if executableFile(path) {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatalf("%s was not restored executable", path)
+}
+
 func TestMintRegistrationToken_Repo(t *testing.T) {
 	var got struct {
 		method string
