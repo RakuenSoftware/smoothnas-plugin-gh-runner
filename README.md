@@ -14,7 +14,7 @@ In the SmoothNAS UI:
 
 1. **Get a token from GitHub.** Either:
    - Create a fine-grained PAT with `actions:write` scope on the target repo, use a GitHub App installation token, or use an OAuth token from `gh auth token` with sufficient access. Paste it as `GH_RUNNER_TOKEN`. Short-lived registration tokens from the GitHub UI are not supported in controller mode because each worker needs a fresh registration token.
-2. **Install** → paste this manifest into the wizard, set `GH_REPO_URL` (e.g. `https://github.com/my-org/my-repo`) and `GH_RUNNER_TOKEN`, pick a tier with SSD slot capacity, and choose `GH_RUNNER_WORKERS` for concurrency.
+2. **Install** → paste this manifest into the wizard, set `GH_REPO_URL` (e.g. `https://github.com/my-org/my-repo`) and `GH_RUNNER_TOKEN`, pick a tier with SSD slot capacity, and choose `GH_RUNNER_WORKERS` for concurrency. Set `GH_RUNNER_CPUS` and `GH_RUNNER_MEMORY` to cap each runner worker, or leave them at `0` for unrestricted CPU and memory.
 3. **Start** → click Start on the plugin card; tierd materialises the controller container. The controller uses the SmoothNAS runtime socket to start worker containers. Each worker registers with GitHub as ephemeral, appears in the runner list while idle or running, handles one job, then exits and is removed with its ephemeral workspace.
 4. **Use** → target the runners from a workflow:
    ```yaml
@@ -22,7 +22,7 @@ In the SmoothNAS UI:
      build:
        runs-on: [self-hosted, smoothnas]
    ```
-5. **Scale** → change `GH_RUNNER_WORKERS` and restart the plugin. The controller reconciles the worker pool to that count.
+5. **Scale** → change `GH_RUNNER_WORKERS`, `GH_RUNNER_CPUS`, or `GH_RUNNER_MEMORY` and restart the plugin. The controller reconciles the worker pool and applies resource limits to newly created workers.
 
 Uninstall via the UI's Danger Zone stops the controller. The controller stops/removes workers, workers deregister through the SIGTERM path, and SmoothNAS removes the plugin image and workspace volume.
 

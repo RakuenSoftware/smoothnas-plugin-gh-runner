@@ -77,6 +77,8 @@ type config struct {
 	ephemeral     bool
 	scope         scope
 	workerCount   int
+	workerCPUs    float64
+	workerMemory  int64
 	dockerHost    string
 	workerImage   string
 	bindWorkspace bool
@@ -151,6 +153,8 @@ func loadConfig() (config, error) {
 		ephemeral:     envBool("GH_RUNNER_EPHEMERAL", true),
 		scope:         sc,
 		workerCount:   envInt("GH_RUNNER_WORKERS", defaultWorkers),
+		workerCPUs:    envFloat("GH_RUNNER_CPUS", 0),
+		workerMemory:  envBytes("GH_RUNNER_MEMORY", 0),
 		dockerHost:    envOr("DOCKER_HOST", defaultDockerHost),
 		workerImage:   os.Getenv("GH_RUNNER_WORKER_IMAGE"),
 		bindWorkspace: envBool("GH_RUNNER_BIND_WORKSPACE", false),
@@ -466,6 +470,8 @@ type createContainerRequest struct {
 type hostConfig struct {
 	Binds         []string      `json:"Binds,omitempty"`
 	NetworkMode   string        `json:"NetworkMode,omitempty"`
+	NanoCPUs      int64         `json:"NanoCpus,omitempty"`
+	Memory        int64         `json:"Memory,omitempty"`
 	RestartPolicy restartPolicy `json:"RestartPolicy"`
 }
 
@@ -480,6 +486,12 @@ type createContainerResponse struct {
 func runController(ctx context.Context, cfg config) error {
 	if cfg.workerCount < 1 {
 		return fmt.Errorf("GH_RUNNER_WORKERS must be >= 1, got %d", cfg.workerCount)
+	}
+	if cfg.workerCPUs < 0 {
+		return fmt.Errorf("GH_RUNNER_CPUS must be >= 0, got %g", cfg.workerCPUs)
+	}
+	if cfg.workerMemory < 0 {
+		return fmt.Errorf("GH_RUNNER_MEMORY must be >= 0, got %d", cfg.workerMemory)
 	}
 	dc, err := newDockerClient(cfg.dockerHost)
 	if err != nil {
@@ -609,6 +621,8 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		HostConfig: hostConfig{
 			Binds:         binds,
 			NetworkMode:   networkMode,
+			NanoCPUs:      workerNanoCPUs(cfg.workerCPUs),
+			Memory:        cfg.workerMemory,
 			RestartPolicy: restartPolicy{Name: "no"},
 		},
 	}
@@ -1289,6 +1303,81 @@ func envInt(k string, def int) int {
 		return def
 	}
 	return n
+}
+
+func envFloat(k string, def float64) float64 {
+	v := strings.TrimSpace(os.Getenv(k))
+	if v == "" {
+		return def
+	}
+	n, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		log.Printf("invalid float %s=%q; using default %g", k, v, def)
+		return def
+	}
+	return n
+}
+
+func envBytes(k string, def int64) int64 {
+	v := strings.TrimSpace(os.Getenv(k))
+	if v == "" {
+		return def
+	}
+	n, err := parseByteSize(v)
+	if err != nil {
+		log.Printf("invalid byte size %s=%q: %v; using default %d", k, v, err, def)
+		return def
+	}
+	return n
+}
+
+func workerNanoCPUs(cpus float64) int64 {
+	if cpus <= 0 {
+		return 0
+	}
+	return int64(cpus * 1_000_000_000)
+}
+
+func parseByteSize(value string) (int64, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, errors.New("empty size")
+	}
+	i := 0
+	for i < len(value) {
+		c := value[i]
+		if (c >= '0' && c <= '9') || c == '.' {
+			i++
+			continue
+		}
+		break
+	}
+	if i == 0 {
+		return 0, fmt.Errorf("missing numeric value")
+	}
+	n, err := strconv.ParseFloat(value[:i], 64)
+	if err != nil {
+		return 0, err
+	}
+	if n < 0 {
+		return 0, fmt.Errorf("must be non-negative")
+	}
+	unit := strings.ToLower(strings.TrimSpace(value[i:]))
+	multiplier := float64(1)
+	switch unit {
+	case "", "b":
+	case "k", "kb", "kib":
+		multiplier = 1 << 10
+	case "m", "mb", "mib":
+		multiplier = 1 << 20
+	case "g", "gb", "gib":
+		multiplier = 1 << 30
+	case "t", "tb", "tib":
+		multiplier = 1 << 40
+	default:
+		return 0, fmt.Errorf("unsupported unit %q", unit)
+	}
+	return int64(n * multiplier), nil
 }
 
 func sleepOrDone(ctx context.Context, d time.Duration) bool {
