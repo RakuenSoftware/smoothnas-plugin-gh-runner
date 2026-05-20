@@ -32,6 +32,9 @@ artifact:
 container:
   command: []
   restartPolicy: unless-stopped
+  resources:
+    # Controller only. Worker containers use GH_RUNNER_CPUS below.
+    cpu: "1"
 
 instances:
   count: 1
