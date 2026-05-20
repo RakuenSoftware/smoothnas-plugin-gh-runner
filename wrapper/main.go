@@ -57,7 +57,7 @@ const (
 	runnerNamePrefix  = "smoothnas-"
 	maxRunnerNameLen  = 64
 	recycleDelay      = 10 * time.Second
-	nodeRepairEvery   = 2 * time.Second
+	nodeRepairEvery   = 200 * time.Millisecond
 	defaultDockerHost = "unix:///var/run/docker.sock"
 	workerLabelKey    = "io.smoothnas.gh-runner.worker"
 	staleSweepEvery   = 1 * time.Minute
@@ -190,6 +190,9 @@ func startActionNodeRuntimeRepair(ctx context.Context, runnerHome string) func()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		if err := ensureActionNodeRuntimes(runnerHome); err != nil {
+			log.Printf("restore action node runtimes: %v", err)
+		}
 		ticker := time.NewTicker(nodeRepairEvery)
 		defer ticker.Stop()
 		for {
@@ -270,6 +273,8 @@ func runPersistent(ctx context.Context, cfg config) error {
 	if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
 		return err
 	}
+	stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
+	defer stopRepair()
 
 	regToken, err := resolveRegistrationToken(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token, cfg.tokenKind)
 	if err != nil {
@@ -292,9 +297,7 @@ func runPersistent(ctx context.Context, cfg config) error {
 		log.Printf("registered as %q", runnerName)
 	}
 
-	stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
 	runErr := runRunSh(ctx, cfg.runnerHome)
-	stopRepair()
 
 	// Deregister regardless of run.sh exit status. The cancellation
 	// path (SIGTERM) is the common case; an unprompted run.sh exit
@@ -322,6 +325,9 @@ func runEphemeralOnce(ctx context.Context, cfg config) error {
 	if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
 		return err
 	}
+	stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
+	defer stopRepair()
+
 	regToken, err := mintRegistrationToken(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
 	if err != nil {
 		return fmt.Errorf("mint registration token: %w", err)
@@ -333,9 +339,7 @@ func runEphemeralOnce(ctx context.Context, cfg config) error {
 	}
 	log.Printf("registered ephemeral runner %q", runnerName)
 
-	stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
 	runErr := runRunSh(ctx, cfg.runnerHome)
-	stopRepair()
 	if ctx.Err() != nil {
 		deregister(context.Background(), http.DefaultClient, cfg.runnerHome, cfg.apiBase, cfg.scope, cfg.token, cfg.tokenKind)
 		_ = cleanupRunnerState(cfg.runnerHome)
@@ -376,9 +380,11 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 			}
 			continue
 		}
+		stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
 
 		regToken, err := mintRegistrationToken(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
 		if err != nil {
+			stopRepair()
 			log.Printf("mint registration token: %v", err)
 			if !sleepOrDone(ctx, recycleDelay) {
 				return
@@ -389,6 +395,7 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 		runnerName := runnerNameWithSuffix(baseName, fmt.Sprintf("-%d-%d", time.Now().Unix(), cycle))
 		configArgs := buildConfigArgs(cfg.repoURL, regToken, cfg.labels, cfg.group, runnerName, cfg.scope.IsOrg(), true)
 		if err := runScript(ctx, cfg.runnerHome, "./config.sh", configArgs); err != nil {
+			stopRepair()
 			if ctx.Err() != nil {
 				return
 			}
@@ -400,7 +407,6 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 		}
 		log.Printf("registered ephemeral runner %q", runnerName)
 
-		stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
 		runErr := runRunSh(ctx, cfg.runnerHome)
 		stopRepair()
 		if ctx.Err() != nil {
