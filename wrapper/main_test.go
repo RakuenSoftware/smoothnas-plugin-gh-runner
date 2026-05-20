@@ -459,6 +459,54 @@ func TestWorkerHasGitHubRunner(t *testing.T) {
 	}
 }
 
+func TestExcessIdleWorkers(t *testing.T) {
+	ids := []string{
+		"111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"222222222222aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"333333333333aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"444444444444aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	}
+	workers := []containerSummary{
+		{ID: ids[0], State: "running"},
+		{ID: ids[1], State: "running"},
+		{ID: ids[2], State: "running"},
+		{ID: ids[3], State: "running"},
+		{ID: "555555555555aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", State: "exited"},
+	}
+	runners := []githubRunner{
+		{Name: "smoothnas-111111111111-1779287001", Status: "online", Busy: true},
+		{Name: "smoothnas-222222222222-1779287002", Status: "online", Busy: false},
+		{Name: "smoothnas-333333333333-1779287003", Status: "online", Busy: false},
+		{Name: "smoothnas-444444444444-1779287004", Status: "online", Busy: false},
+	}
+
+	got := excessIdleWorkers(workers, runners, 2)
+	wantIDs := []string{ids[1], ids[2]}
+	if len(got) != len(wantIDs) {
+		t.Fatalf("len(excessIdleWorkers) = %d, want %d: %#v", len(got), len(wantIDs), got)
+	}
+	for i, want := range wantIDs {
+		if got[i].ID != want {
+			t.Fatalf("worker %d ID = %q, want %q", i, got[i].ID, want)
+		}
+	}
+}
+
+func TestExcessIdleWorkersDoesNotRemoveUnknownOrBusyWorkers(t *testing.T) {
+	workers := []containerSummary{
+		{ID: "111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", State: "running"},
+		{ID: "222222222222aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", State: "running"},
+		{ID: "333333333333aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", State: "running"},
+	}
+	runners := []githubRunner{
+		{Name: "smoothnas-111111111111-1779287001", Status: "online", Busy: true},
+	}
+
+	if got := excessIdleWorkers(workers, runners, 1); len(got) != 0 {
+		t.Fatalf("excessIdleWorkers removed unsafe workers: %#v", got)
+	}
+}
+
 func TestWorkerRegistrationGraceExpired(t *testing.T) {
 	now := time.Unix(200, 0)
 	if workerRegistrationGraceExpired(containerSummary{Created: 0}, now) {

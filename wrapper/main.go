@@ -542,6 +542,9 @@ func runController(ctx context.Context, cfg config) error {
 					log.Printf("cleanup stale local workers: %v", err)
 				}
 				deleteStaleGitHubRunners(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token, stale)
+				if err := shrinkExcessIdleWorkers(ctx, dc, cfg, runners); err != nil {
+					log.Printf("shrink excess idle workers: %v", err)
+				}
 			}
 			lastStaleSweep = time.Now()
 		}
@@ -588,6 +591,54 @@ func reconcileWorkers(ctx context.Context, dc *dockerClient, cfg config, image, 
 		running++
 	}
 	return nil
+}
+
+func shrinkExcessIdleWorkers(ctx context.Context, dc *dockerClient, cfg config, runners []githubRunner) error {
+	workers, err := dc.listWorkers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, w := range excessIdleWorkers(workers, runners, cfg.workerCount) {
+		name := containerName(w)
+		log.Printf("stopping excess idle worker %s", name)
+		if err := dc.stopContainer(ctx, w.ID, 60); err != nil {
+			log.Printf("stop excess idle worker %s: %v", name, err)
+		}
+		if err := dc.removeContainer(ctx, w.ID, true); err != nil {
+			log.Printf("remove excess idle worker %s: %v", name, err)
+			continue
+		}
+		removeWorkerHostWorkspace(cfg, name)
+	}
+	return nil
+}
+
+func excessIdleWorkers(workers []containerSummary, runners []githubRunner, target int) []containerSummary {
+	running := 0
+	for _, w := range workers {
+		if w.State == "running" {
+			running++
+		}
+	}
+	if running <= target {
+		return nil
+	}
+	excess := running - target
+	var out []containerSummary
+	for _, w := range workers {
+		if len(out) >= excess {
+			break
+		}
+		if w.State != "running" {
+			continue
+		}
+		runner, ok := githubRunnerForWorker(runners, w.ID)
+		if !ok || runner.Busy {
+			continue
+		}
+		out = append(out, w)
+	}
+	return out
 }
 
 func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, workspaceSource, networkMode string) error {
@@ -722,12 +773,17 @@ func staleRunnerMatchesWorker(stale []githubRunner, workerID string) bool {
 }
 
 func workerHasGitHubRunner(runners []githubRunner, workerID string) bool {
+	_, ok := githubRunnerForWorker(runners, workerID)
+	return ok
+}
+
+func githubRunnerForWorker(runners []githubRunner, workerID string) (githubRunner, bool) {
 	for _, runner := range runners {
 		if runnerNameMatchesWorker(runner.Name, workerID) {
-			return true
+			return runner, true
 		}
 	}
-	return false
+	return githubRunner{}, false
 }
 
 func runnerNameMatchesWorker(runnerName, workerID string) bool {
