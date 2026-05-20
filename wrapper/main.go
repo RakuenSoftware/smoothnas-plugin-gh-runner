@@ -451,13 +451,17 @@ type containerInspect struct {
 	Config struct {
 		Image string `json:"Image"`
 	} `json:"Config"`
-	HostConfig struct {
-		NetworkMode string `json:"NetworkMode"`
-	} `json:"HostConfig"`
-	Mounts []struct {
+	HostConfig inspectHostConfig `json:"HostConfig"`
+	Mounts     []struct {
 		Source      string `json:"Source"`
 		Destination string `json:"Destination"`
 	} `json:"Mounts"`
+}
+
+type inspectHostConfig struct {
+	NetworkMode string `json:"NetworkMode"`
+	NanoCPUs    int64  `json:"NanoCpus"`
+	Memory      int64  `json:"Memory"`
 }
 
 type createContainerRequest struct {
@@ -542,6 +546,9 @@ func runController(ctx context.Context, cfg config) error {
 					log.Printf("cleanup stale local workers: %v", err)
 				}
 				deleteStaleGitHubRunners(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token, stale)
+				if err := removeMismatchedIdleWorkers(ctx, dc, cfg, runners); err != nil {
+					log.Printf("replace resource-mismatched idle workers: %v", err)
+				}
 				if err := shrinkExcessIdleWorkers(ctx, dc, cfg, runners); err != nil {
 					log.Printf("shrink excess idle workers: %v", err)
 				}
@@ -639,6 +646,46 @@ func excessIdleWorkers(workers []containerSummary, runners []githubRunner, targe
 		out = append(out, w)
 	}
 	return out
+}
+
+func removeMismatchedIdleWorkers(ctx context.Context, dc *dockerClient, cfg config, runners []githubRunner) error {
+	workers, err := dc.listWorkers(ctx)
+	if err != nil {
+		return err
+	}
+	for _, w := range workers {
+		if w.State != "running" {
+			continue
+		}
+		runner, ok := githubRunnerForWorker(runners, w.ID)
+		if !ok || runner.Busy {
+			continue
+		}
+		inspect, err := dc.inspectContainer(ctx, w.ID)
+		if err != nil {
+			log.Printf("inspect worker %s for resource drift: %v", containerName(w), err)
+			continue
+		}
+		if workerResourceLimitsMatch(inspect.HostConfig, cfg) {
+			continue
+		}
+		name := containerName(w)
+		log.Printf("replacing idle worker %s with stale resource limits", name)
+		if err := dc.stopContainer(ctx, w.ID, 60); err != nil {
+			log.Printf("stop resource-mismatched worker %s: %v", name, err)
+		}
+		if err := dc.removeContainer(ctx, w.ID, true); err != nil {
+			log.Printf("remove resource-mismatched worker %s: %v", name, err)
+			continue
+		}
+		removeWorkerHostWorkspace(cfg, name)
+	}
+	return nil
+}
+
+func workerResourceLimitsMatch(host inspectHostConfig, cfg config) bool {
+	return host.NanoCPUs == workerNanoCPUs(cfg.workerCPUs) &&
+		host.Memory == cfg.workerMemory
 }
 
 func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, workspaceSource, networkMode string) error {

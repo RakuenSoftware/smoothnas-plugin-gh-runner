@@ -507,6 +507,31 @@ func TestExcessIdleWorkersDoesNotRemoveUnknownOrBusyWorkers(t *testing.T) {
 	}
 }
 
+func TestWorkerResourceLimitsMatch(t *testing.T) {
+	cfg := config{workerCPUs: 8, workerMemory: 32 << 30}
+	host := inspectHostConfig{NanoCPUs: 8_000_000_000, Memory: 32 << 30}
+	if !workerResourceLimitsMatch(host, cfg) {
+		t.Fatal("matching resource limits should not be replaced")
+	}
+
+	host.NanoCPUs = 4_000_000_000
+	if workerResourceLimitsMatch(host, cfg) {
+		t.Fatal("stale CPU limit should force replacement")
+	}
+
+	host.NanoCPUs = 8_000_000_000
+	host.Memory = 16 << 30
+	if workerResourceLimitsMatch(host, cfg) {
+		t.Fatal("stale memory limit should force replacement")
+	}
+}
+
+func TestWorkerResourceLimitsMatchUnrestricted(t *testing.T) {
+	if !workerResourceLimitsMatch(inspectHostConfig{}, config{}) {
+		t.Fatal("zero resource limits should match unrestricted workers")
+	}
+}
+
 func TestWorkerRegistrationGraceExpired(t *testing.T) {
 	now := time.Unix(200, 0)
 	if workerRegistrationGraceExpired(containerSummary{Created: 0}, now) {
