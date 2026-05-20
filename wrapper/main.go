@@ -546,8 +546,8 @@ func runController(ctx context.Context, cfg config) error {
 					log.Printf("cleanup stale local workers: %v", err)
 				}
 				deleteStaleGitHubRunners(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token, stale)
-				if err := removeMismatchedIdleWorkers(ctx, dc, cfg, runners); err != nil {
-					log.Printf("replace resource-mismatched idle workers: %v", err)
+				if err := removeMismatchedIdleWorkers(ctx, dc, cfg, image, runners); err != nil {
+					log.Printf("replace stale idle workers: %v", err)
 				}
 				if err := shrinkExcessIdleWorkers(ctx, dc, cfg, runners); err != nil {
 					log.Printf("shrink excess idle workers: %v", err)
@@ -648,7 +648,7 @@ func excessIdleWorkers(workers []containerSummary, runners []githubRunner, targe
 	return out
 }
 
-func removeMismatchedIdleWorkers(ctx context.Context, dc *dockerClient, cfg config, runners []githubRunner) error {
+func removeMismatchedIdleWorkers(ctx context.Context, dc *dockerClient, cfg config, image string, runners []githubRunner) error {
 	workers, err := dc.listWorkers(ctx)
 	if err != nil {
 		return err
@@ -666,11 +666,11 @@ func removeMismatchedIdleWorkers(ctx context.Context, dc *dockerClient, cfg conf
 			log.Printf("inspect worker %s for resource drift: %v", containerName(w), err)
 			continue
 		}
-		if workerResourceLimitsMatch(inspect.HostConfig, cfg) {
+		if workerSpecMatches(inspect, cfg, image) {
 			continue
 		}
 		name := containerName(w)
-		log.Printf("replacing idle worker %s with stale resource limits", name)
+		log.Printf("replacing idle worker %s with stale worker spec", name)
 		if err := dc.stopContainer(ctx, w.ID, 60); err != nil {
 			log.Printf("stop resource-mismatched worker %s: %v", name, err)
 		}
@@ -681,6 +681,13 @@ func removeMismatchedIdleWorkers(ctx context.Context, dc *dockerClient, cfg conf
 		removeWorkerHostWorkspace(cfg, name)
 	}
 	return nil
+}
+
+func workerSpecMatches(inspect containerInspect, cfg config, image string) bool {
+	if inspect.Config.Image != image {
+		return false
+	}
+	return workerResourceLimitsMatch(inspect.HostConfig, cfg)
 }
 
 func workerResourceLimitsMatch(host inspectHostConfig, cfg config) bool {

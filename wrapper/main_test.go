@@ -532,6 +532,27 @@ func TestWorkerResourceLimitsMatchUnrestricted(t *testing.T) {
 	}
 }
 
+func TestWorkerSpecMatchesImageAndResources(t *testing.T) {
+	cfg := config{workerCPUs: 8, workerMemory: 32 << 30}
+	inspect := containerInspect{}
+	inspect.Config.Image = "runner-image:v2"
+	inspect.HostConfig = inspectHostConfig{NanoCPUs: 8_000_000_000, Memory: 32 << 30}
+	if !workerSpecMatches(inspect, cfg, "runner-image:v2") {
+		t.Fatal("matching image and resource limits should not be replaced")
+	}
+
+	inspect.Config.Image = "runner-image:v1"
+	if workerSpecMatches(inspect, cfg, "runner-image:v2") {
+		t.Fatal("stale worker image should force replacement")
+	}
+
+	inspect.Config.Image = "runner-image:v2"
+	inspect.HostConfig.NanoCPUs = 4_000_000_000
+	if workerSpecMatches(inspect, cfg, "runner-image:v2") {
+		t.Fatal("stale resource limits should force replacement")
+	}
+}
+
 func TestWorkerRegistrationGraceExpired(t *testing.T) {
 	now := time.Unix(200, 0)
 	if workerRegistrationGraceExpired(containerSummary{Created: 0}, now) {
