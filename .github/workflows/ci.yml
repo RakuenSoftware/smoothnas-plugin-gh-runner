@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: wrapper tests
+        working-directory: wrapper
+        run: |
+          go vet ./...
+          go test -race ./...
+      - name: image includes executable action runtimes
+        run: |
+          set -euo pipefail
+          docker build --pull -t smoothnas-gh-runner:test .
+          docker run --rm --entrypoint /home/runner/externals/node20/bin/node smoothnas-gh-runner:test --version
+          docker run --rm --entrypoint /home/runner/externals/node24/bin/node smoothnas-gh-runner:test --version
