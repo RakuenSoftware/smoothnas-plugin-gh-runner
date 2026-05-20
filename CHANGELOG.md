@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.14](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.13...v0.3.14) (2026-05-20)
+
+
+### Bug Fixes
+
+* bundle executable action node runtimes ([65d04e9](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/65d04e9be9a2a747f0af23282d804e2f487ac7b0))
+* include xz for node runtime install ([c4c445d](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/c4c445df3fe14f9fb48022661f65fb7a03e9c6ae))
+
 ## [0.3.13](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.12...v0.3.13) (2026-05-20)
 
 
