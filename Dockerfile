@@ -88,8 +88,10 @@ RUN set -eux; \
       curl -fsSLo node.tar.xz "$url"; \
       echo "${sha256}  node.tar.xz" | sha256sum -c -; \
       tar -xJf node.tar.xz; \
-      rm -f "/home/runner/externals/node${major}/bin/node"; \
-      install -D -m 0755 "node-v${version}-linux-${arch}/bin/node" "/home/runner/externals/node${major}/bin/node"; \
+      node_bin="/home/runner/externals/node${major}/bin/node"; \
+      mkdir -p "$(dirname "$node_bin")"; \
+      cat "node-v${version}-linux-${arch}/bin/node" > "$node_bin"; \
+      chmod 0755 "$node_bin"; \
       rm -rf node.tar.xz "node-v${version}-linux-${arch}"; \
       "/home/runner/externals/node${major}/bin/node" --version; \
     }; \
