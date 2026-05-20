@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.19](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.18...v0.3.19) (2026-05-20)
+
+
+### Bug Fixes
+
+* remove unsupported CPU resource from manifest ([#52](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/52)) ([a702f7a](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/a702f7afbb21e1d5befe06596c119a627daf11d6))
+
 ## [0.3.18](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.17...v0.3.18) (2026-05-20)
 
 
