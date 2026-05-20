@@ -25,6 +25,13 @@ ARG RUNNER_VERSION=2.334.0
 ARG RUNNER_SHA256_X64=048024cd2c848eb6f14d5646d56c13a4def2ae7ee3ad12122bee960c56f3d271
 ARG RUNNER_SHA256_ARM64=f44255bd3e80160eb25f71bc83d06ea025f6908748807a584687b3184759f7e4
 ARG RUNNER_SHA256_ARM=84a25196caf971d0c634e32864731e773e1668235f799666fc0ec40ac666a0ab
+ARG NODE20_VERSION=20.20.2
+ARG NODE20_SHA256_X64=df770b2a6f130ed8627c9782c988fda9669fa23898329a61a871e32f965e007d
+ARG NODE20_SHA256_ARM64=73093db209e4e9e09dd7d15a47aeaab1b74833830df03efa5f942a1122c5fa71
+ARG NODE20_SHA256_ARM=f704ce75d9a194c30c378049b516000e49612c2f046ac83c7435eb33ec2926f0
+ARG NODE24_VERSION=24.15.0
+ARG NODE24_SHA256_X64=472655581fb851559730c48763e0c9d3bc25975c59d518003fc0849d3e4ba0f6
+ARG NODE24_SHA256_ARM64=f3d5a797b5d210ce8e2cb265544c8e482eaedcb8aa409a8b46da7e8595d0dda0
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -42,6 +49,7 @@ RUN apt-get update \
         libicu70 \
         sudo \
         tar \
+        xz-utils \
  && rm -rf /var/lib/apt/lists/*
 
 # Non-root runner user. Matches what GitHub's official install
@@ -67,6 +75,38 @@ RUN set -eux; \
     echo "${sha256}  runner.tar.gz" | sha256sum -c - \
  && tar xzf runner.tar.gz \
  && rm runner.tar.gz
+
+# Keep Node runtimes as regular files in the final image. The runner
+# tarball includes these runtimes, but SmoothNAS imports OCI layers into
+# LXC rootfs templates; installing the binaries explicitly prevents a
+# bad template where npm/npx survive but bin/node is missing.
+RUN set -eux; \
+    install_node() { \
+      major="$1"; \
+      version="$2"; \
+      arch="$3"; \
+      sha256="$4"; \
+      url="https://nodejs.org/dist/v${version}/node-v${version}-linux-${arch}.tar.xz"; \
+      curl -fsSLo node.tar.xz "$url"; \
+      echo "${sha256}  node.tar.xz" | sha256sum -c -; \
+      tar -xJf node.tar.xz; \
+      install -m 0755 "node-v${version}-linux-${arch}/bin/node" "/home/runner/externals/node${major}/bin/node"; \
+      rm -rf node.tar.xz "node-v${version}-linux-${arch}"; \
+      "/home/runner/externals/node${major}/bin/node" --version; \
+    }; \
+    case "${TARGETARCH}" in \
+      amd64) node_arch="x64"; node20_sha="${NODE20_SHA256_X64}"; node24_sha="${NODE24_SHA256_X64}" ;; \
+      arm64) node_arch="arm64"; node20_sha="${NODE20_SHA256_ARM64}"; node24_sha="${NODE24_SHA256_ARM64}" ;; \
+      arm) node_arch="armv7l"; node20_sha="${NODE20_SHA256_ARM}"; node24_sha="" ;; \
+      *) echo "unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    install_node 20 "${NODE20_VERSION}" "$node_arch" "$node20_sha"; \
+    if [ -n "$node24_sha" ]; then \
+      install_node 24 "${NODE24_VERSION}" "$node_arch" "$node24_sha"; \
+    else \
+      echo "Node.js 24 does not publish linux-${node_arch} binaries" >&2; \
+      exit 1; \
+    fi
 
 # Runner's bundled dependency installer needs root.
 USER root
