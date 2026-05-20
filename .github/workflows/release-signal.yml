@@ -1,0 +1,37 @@
+name: release-signal
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  release-signal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure release-please can create a release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$HEAD_REF" == release-please--* || "$PR_TITLE" =~ ^chore\(main\):[[:space:]]release ]]; then
+            exit 0
+          fi
+
+          messages="$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits" --jq '.[].commit.message')"
+          if printf '%s\n' "$messages" | grep -Eiq '^(feat|fix|deps)(\([^)]+\))?!?:|^Release-As:[[:space:]]*[0-9]'; then
+            exit 0
+          fi
+
+          echo "::error::release-please needs at least one releasable commit in this PR."
+          echo "Use a commit subject starting with fix:, feat:, or deps:, or add a Release-As: x.y.z footer."
+          echo "Current commit messages:"
+          printf '%s\n' "$messages"
+          exit 1
