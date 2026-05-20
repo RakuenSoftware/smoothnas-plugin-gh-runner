@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.21](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.20...v0.3.21) (2026-05-20)
+
+
+### Bug Fixes
+
+* continuously repair action node runtimes ([#56](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/56)) ([93d487d](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/93d487d7fbd869b9306826a4740464257423e908))
+
 ## [0.3.20](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.19...v0.3.20) (2026-05-20)
 
 
