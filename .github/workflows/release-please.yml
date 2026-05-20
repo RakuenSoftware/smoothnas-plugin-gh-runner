@@ -1,9 +1,12 @@
 name: release-please
 
 # Bumps the version + opens (or updates) a "Release vX.Y.Z" PR every
-# time a conventional commit lands on main. Merging that PR creates
-# the v* tag, which fires release.yml to build + publish the image
-# and attach the digest-pinned manifest to the GitHub release.
+# time a releasable conventional commit lands on main. The
+# release-signal PR check prevents ordinary PRs from merging without a
+# fix:, feat:, deps:, or Release-As signal, because release-please
+# otherwise exits successfully while creating no release PR. Merging
+# the release PR creates the v* tag; this workflow then dispatches
+# release.yml to build + publish the image and attach the manifest.
 #
 # Conventional-commit keywords:
 #   feat:    minor bump (0.1.0 → 0.2.0)
