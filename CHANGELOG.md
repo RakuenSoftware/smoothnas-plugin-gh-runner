@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.17](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.16...v0.3.17) (2026-05-20)
+
+
+### Bug Fixes
+
+* keep runner node binaries in base layer ([#47](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/47)) ([f687efa](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/f687efa3cabb4bb1adc329208809812d38bcc464))
+* rotate workers after image upgrades ([#45](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/45)) ([79dc73e](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/79dc73e8740ae2597ba00c89c49961d73b1b4025))
+
 ## [0.3.16](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.15...v0.3.16) (2026-05-20)
 
 
