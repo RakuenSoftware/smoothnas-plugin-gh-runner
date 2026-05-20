@@ -62,7 +62,11 @@ RUN useradd -m -d /home/runner -s /bin/bash runner \
 USER runner
 WORKDIR /home/runner
 
-# Pull and verify the actions/runner tarball.
+# Pull and verify the actions/runner tarball, then install Node runtime
+# binaries in the same filesystem layer. SmoothNAS imports OCI images
+# into LXC rootfs templates; keeping the runner's externals tree and the
+# explicit bin/node files together avoids a bad flattened template where
+# npm/npx symlinks survive but bin/node from a later layer is missing.
 RUN set -eux; \
     case "${TARGETARCH}" in \
       amd64) runner_arch="x64"; sha256="${RUNNER_SHA256_X64}" ;; \
@@ -74,13 +78,7 @@ RUN set -eux; \
         "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-${runner_arch}-${RUNNER_VERSION}.tar.gz"; \
     echo "${sha256}  runner.tar.gz" | sha256sum -c - \
  && tar xzf runner.tar.gz \
- && rm runner.tar.gz
-
-# Keep Node runtimes as regular files in the final image. The runner
-# tarball includes these runtimes, but SmoothNAS imports OCI layers into
-# LXC rootfs templates; installing the binaries explicitly prevents a
-# bad template where npm/npx survive but bin/node is missing.
-RUN set -eux; \
+ && rm runner.tar.gz; \
     install_node() { \
       major="$1"; \
       version="$2"; \
@@ -90,7 +88,8 @@ RUN set -eux; \
       curl -fsSLo node.tar.xz "$url"; \
       echo "${sha256}  node.tar.xz" | sha256sum -c -; \
       tar -xJf node.tar.xz; \
-      install -m 0755 "node-v${version}-linux-${arch}/bin/node" "/home/runner/externals/node${major}/bin/node"; \
+      rm -f "/home/runner/externals/node${major}/bin/node"; \
+      install -D -m 0755 "node-v${version}-linux-${arch}/bin/node" "/home/runner/externals/node${major}/bin/node"; \
       rm -rf node.tar.xz "node-v${version}-linux-${arch}"; \
       "/home/runner/externals/node${major}/bin/node" --version; \
     }; \
