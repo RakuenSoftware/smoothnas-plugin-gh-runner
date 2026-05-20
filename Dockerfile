@@ -49,6 +49,7 @@ RUN apt-get update \
         libicu70 \
         sudo \
         tar \
+        xz-utils \
  && rm -rf /var/lib/apt/lists/*
 
 # Non-root runner user. Matches what GitHub's official install
