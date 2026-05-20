@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.13](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.12...v0.3.13) (2026-05-20)
+
+
+### Bug Fixes
+
+* require releasable commits before merge ([f629f61](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/f629f61a6c921fc046ab6cc05b0a4aa79a85417d))
+* require releasable commits before merge ([ce15345](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/ce1534572cce8d5474c3f515a161a675f4085b3f))
+
 ## [0.3.12](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.11...v0.3.12) (2026-05-18)
 
 
