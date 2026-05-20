@@ -33,6 +33,8 @@ The actions/runner tarball ships with `config.sh` (registration) and `run.sh` (t
 - `GH_RUNNER_MODE=controller` (default): inspect the controller container and use the SmoothNAS runtime socket to create/remove worker containers.
 - `GH_RUNNER_MODE=worker`: register one ephemeral GitHub runner, run exactly one job, clean local runner/action/tool state, and exit.
 
+The controller and its spawned workers use the same Debian 13 image. Keep this aligned with the SmoothNAS appliance base so self-hosted CI jobs do not run against a different distro than production.
+
 Controller mode requires SmoothNAS' `runtime-control` plugin profile. That profile mounts `/run/smoothnas-runtime/docker.sock` at `/var/run/docker.sock` and sets `DOCKER_HOST=unix:///var/run/docker.sock`; it intentionally does not grant Wolf's device or capability set.
 
 The worker path:

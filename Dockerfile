@@ -1,7 +1,7 @@
 # SmoothNAS plugin: GitHub Actions ephemeral runner controller and
 # one-shot worker image.
 #
-# Built FROM ubuntu:22.04 — no upstream "official" actions/runner
+# Built FROM debian:13-slim — no upstream "official" actions/runner
 # image exists, so we install the runner tarball ourselves at known
 # pinned versions. The wrapper is a small Go binary that handles
 # registration token exchange, config.sh, SIGTERM-driven graceful
@@ -16,7 +16,7 @@ COPY wrapper/go.mod wrapper/main.go ./
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /smoothnas-wrapper .
 
 # --- final image ---
-FROM ubuntu:22.04
+FROM debian:13-slim
 
 # RUNNER_VERSION is overridable by CI to track upstream releases. The
 # matching tarball SHA is pinned via RUNNER_SHA256 so the image build
@@ -46,7 +46,7 @@ RUN apt-get update \
         curl \
         git \
         jq \
-        libicu70 \
+        libicu76 \
         sudo \
         tar \
         xz-utils \

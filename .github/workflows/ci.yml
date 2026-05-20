@@ -27,5 +27,6 @@ jobs:
         run: |
           set -euo pipefail
           docker build --pull -t smoothnas-gh-runner:test .
+          docker run --rm --entrypoint /bin/sh smoothnas-gh-runner:test -c 'test "$( . /etc/os-release && printf %s "$ID:$VERSION_ID" )" = debian:13'
           docker run --rm --entrypoint /home/runner/externals/node20/bin/node smoothnas-gh-runner:test --version
           docker run --rm --entrypoint /home/runner/externals/node24/bin/node smoothnas-gh-runner:test --version
