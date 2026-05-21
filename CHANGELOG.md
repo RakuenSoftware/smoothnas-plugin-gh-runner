@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.23](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.22...v0.3.23) (2026-05-21)
+
+
+### Bug Fixes
+
+* equip self-hosted workers for builds ([#60](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/60)) ([c1de6b9](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/c1de6b96e8136be460462d1d1ab24d28249b6502))
+
 ## [0.3.22](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.21...v0.3.22) (2026-05-21)
 
 
