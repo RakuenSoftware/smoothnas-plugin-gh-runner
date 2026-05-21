@@ -140,6 +140,9 @@ func main() {
 		if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
 			log.Fatal(err)
 		}
+		if err := ensureRunnerJobHooks(cfg.runnerHome); err != nil {
+			log.Fatal(err)
+		}
 		if err := runEphemeralOnce(ctx, cfg); err != nil && !errors.Is(err, context.Canceled) {
 			log.Fatal(err)
 		}
@@ -150,9 +153,15 @@ func main() {
 		if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
 			log.Fatal(err)
 		}
+		if err := ensureRunnerJobHooks(cfg.runnerHome); err != nil {
+			log.Fatal(err)
+		}
 		runEphemeralLoop(ctx, cfg)
 	case "persistent":
 		if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
+			log.Fatal(err)
+		}
+		if err := ensureRunnerJobHooks(cfg.runnerHome); err != nil {
 			log.Fatal(err)
 		}
 		if err := runPersistent(ctx, cfg); err != nil {
@@ -623,6 +632,34 @@ func ensureRunnerWorkspaces(ctx context.Context, cfg config) error {
 	}
 	if len(repos) > 0 {
 		log.Printf("precreated %d runner workspaces", len(repos))
+	}
+	return nil
+}
+
+func ensureRunnerJobHooks(runnerHome string) error {
+	if runnerHome == "" {
+		runnerHome = "."
+	}
+	hookPath := filepath.Join(runnerHome, "smoothnas-job-started-hook.sh")
+	hook := `#!/bin/sh
+set -eu
+
+runner_home="${RUNNER_HOME:-/home/runner}"
+repo="${GITHUB_REPOSITORY##*/}"
+
+if [ -n "${repo}" ]; then
+  mkdir -p "${runner_home}/_work/${repo}/${repo}"
+fi
+
+if [ -n "${RUNNER_WORKSPACE:-}" ] && [ -n "${repo}" ]; then
+  mkdir -p "${RUNNER_WORKSPACE}/${repo}"
+fi
+`
+	if err := os.WriteFile(hookPath, []byte(hook), 0o755); err != nil {
+		return fmt.Errorf("write job-started hook: %w", err)
+	}
+	if err := os.Setenv("ACTIONS_RUNNER_HOOK_JOB_STARTED", hookPath); err != nil {
+		return fmt.Errorf("set job-started hook env: %w", err)
 	}
 	return nil
 }

@@ -297,6 +297,27 @@ func TestEnsureRunnerWorkspacesConfiguredRepos(t *testing.T) {
 	}
 }
 
+func TestEnsureRunnerJobHooks(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ACTIONS_RUNNER_HOOK_JOB_STARTED", "")
+
+	if err := ensureRunnerJobHooks(dir); err != nil {
+		t.Fatalf("ensureRunnerJobHooks: %v", err)
+	}
+
+	hookPath := filepath.Join(dir, "smoothnas-job-started-hook.sh")
+	if got := os.Getenv("ACTIONS_RUNNER_HOOK_JOB_STARTED"); got != hookPath {
+		t.Fatalf("hook env = %q, want %q", got, hookPath)
+	}
+	info, err := os.Stat(hookPath)
+	if err != nil {
+		t.Fatalf("hook was not created: %v", err)
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Fatalf("hook is not executable: mode=%v", info.Mode())
+	}
+}
+
 func TestMintRegistrationToken_Repo(t *testing.T) {
 	var got struct {
 		method string
