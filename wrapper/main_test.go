@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -536,7 +537,11 @@ func TestWorkerSpecMatchesImageAndResources(t *testing.T) {
 	cfg := config{workerCPUs: 8, workerMemory: 32 << 30}
 	inspect := containerInspect{}
 	inspect.Config.Image = "runner-image:v2"
-	inspect.HostConfig = inspectHostConfig{NanoCPUs: 8_000_000_000, Memory: 32 << 30}
+	inspect.HostConfig = inspectHostConfig{
+		NanoCPUs: 8_000_000_000,
+		Memory:   32 << 30,
+		Binds:    []string{"/host/docker.sock:/var/run/docker.sock:rw"},
+	}
 	if !workerSpecMatches(inspect, cfg, "runner-image:v2") {
 		t.Fatal("matching image and resource limits should not be replaced")
 	}
@@ -550,6 +555,12 @@ func TestWorkerSpecMatchesImageAndResources(t *testing.T) {
 	inspect.HostConfig.NanoCPUs = 4_000_000_000
 	if workerSpecMatches(inspect, cfg, "runner-image:v2") {
 		t.Fatal("stale resource limits should force replacement")
+	}
+
+	inspect.HostConfig.NanoCPUs = 8_000_000_000
+	inspect.HostConfig.Binds = nil
+	if workerSpecMatches(inspect, cfg, "runner-image:v2") {
+		t.Fatal("missing Docker socket bind should force replacement")
 	}
 }
 
@@ -816,7 +827,7 @@ func TestStartWorkerAppliesResourceLimits(t *testing.T) {
 	}
 	dc := &dockerClient{base: srv.URL, client: srv.Client()}
 
-	if err := startWorker(context.Background(), dc, cfg, "runner-image", "", "bridge"); err != nil {
+	if err := startWorker(context.Background(), dc, cfg, "runner-image", "", "/host/docker.sock", "bridge"); err != nil {
 		t.Fatalf("startWorker: %v", err)
 	}
 	if started != "worker-1" {
@@ -827,6 +838,12 @@ func TestStartWorkerAppliesResourceLimits(t *testing.T) {
 	}
 	if created.HostConfig.Memory != 8<<30 {
 		t.Fatalf("Memory = %d, want %d", created.HostConfig.Memory, int64(8<<30))
+	}
+	if !reflect.DeepEqual(created.HostConfig.Binds, []string{"/host/docker.sock:/var/run/docker.sock:rw"}) {
+		t.Fatalf("Binds = %#v", created.HostConfig.Binds)
+	}
+	if !slices.Contains(created.Env, "DOCKER_HOST=unix:///var/run/docker.sock") {
+		t.Fatalf("Env missing DOCKER_HOST: %#v", created.Env)
 	}
 }
 
