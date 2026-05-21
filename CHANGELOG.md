@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.26](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.25...v0.3.26) (2026-05-21)
+
+
+### Bug Fixes
+
+* keep action node runtimes in runner tree ([dd342ca](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/dd342cabc88c99295188f0330a542f43fb77c14f))
+
 ## [0.3.25](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.24...v0.3.25) (2026-05-21)
 
 
