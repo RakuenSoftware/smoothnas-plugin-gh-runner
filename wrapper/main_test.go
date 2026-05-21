@@ -898,6 +898,66 @@ func TestEnsureActionNodeRuntimesRestoresMissingFiles(t *testing.T) {
 	}
 }
 
+func TestEnsureActionNodeRuntimesDownloadsWhenBackupMissing(t *testing.T) {
+	oldBackupDir := actionNodeBackupDir
+	oldRunExternalCommand := runExternalCommand
+	t.Cleanup(func() {
+		actionNodeBackupDir = oldBackupDir
+		runExternalCommand = oldRunExternalCommand
+	})
+
+	root := t.TempDir()
+	actionNodeBackupDir = filepath.Join(root, "missing-backup")
+	runnerHome := filepath.Join(root, "runner")
+
+	var commands []string
+	runExternalCommand = func(_ context.Context, dir, name string, args ...string) error {
+		commands = append(commands, name+" "+strings.Join(args, " "))
+		switch name {
+		case "curl":
+			if err := os.WriteFile(args[1], []byte("archive"), 0o644); err != nil {
+				return err
+			}
+		case "sha256sum":
+			return nil
+		case "tar":
+			sum, err := os.ReadFile(filepath.Join(dir, "node.sha256"))
+			if err != nil {
+				return err
+			}
+			major := "20"
+			if strings.Contains(string(sum), actionNodeSpecs["24"].sha256["x64"]) {
+				major = "24"
+			}
+			extractDir := filepath.Join(dir, "node-v"+actionNodeSpecs[major].version+"-linux-x64", "bin")
+			if err := os.MkdirAll(extractDir, 0o755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(filepath.Join(extractDir, "node"), []byte("downloaded-node"+major), 0o755); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := ensureActionNodeRuntimes(runnerHome); err != nil {
+		t.Fatalf("ensureActionNodeRuntimes: %v", err)
+	}
+	for _, major := range []string{"20", "24"} {
+		dest := filepath.Join(runnerHome, "externals", "node"+major, "bin", "node")
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "downloaded-node"+major {
+			t.Fatalf("node%s content = %q", major, got)
+		}
+	}
+	if len(commands) != 6 {
+		t.Fatalf("commands = %v, want curl/sha256sum/tar for two runtimes", commands)
+	}
+}
+
 func TestMintRegistrationToken_ContextCancel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Sleep past the test's context timeout — never reached.
