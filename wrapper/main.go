@@ -895,6 +895,7 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		"GH_RUNNER_EPHEMERAL=true",
 		"RUNNER_HOME=" + cfg.runnerHome,
 		"DOCKER_HOST=unix:///var/run/docker.sock",
+		"DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1",
 	}
 	if len(cfg.dnsServers) > 0 {
 		env = append(env, "GH_RUNNER_DNS_SERVERS="+strings.Join(cfg.dnsServers, ","))
