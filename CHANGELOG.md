@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.28](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.27...v0.3.28) (2026-05-21)
+
+
+### Bug Fixes
+
+* download action node runtime when backups are missing ([20c3e2e](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/20c3e2e4f64f1c2f52e77acb1e04bbae76301dbf))
+* download action node runtime when backups are missing ([8669415](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/8669415eb9a9338b1d1ddf667798253d8b126b97))
+
 ## [0.3.27](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.26...v0.3.27) (2026-05-21)
 
 
