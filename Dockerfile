@@ -118,6 +118,9 @@ USER root
 RUN /home/runner/bin/installdependencies.sh \
  && for major in 20 24; do \
       test -x "/home/runner/externals/node${major}/bin/node"; \
+      install -D -m 0755 \
+        "/home/runner/externals/node${major}/bin/node" \
+        "/usr/local/share/smoothnas-actions-node/node${major}/node"; \
       "/home/runner/externals/node${major}/bin/node" --version; \
     done \
  && rm -rf /var/lib/apt/lists/*

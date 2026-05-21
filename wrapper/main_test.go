@@ -863,6 +863,41 @@ func TestHostMountSource(t *testing.T) {
 	}
 }
 
+func TestEnsureActionNodeRuntimesRestoresMissingFiles(t *testing.T) {
+	oldBackupDir := actionNodeBackupDir
+	t.Cleanup(func() { actionNodeBackupDir = oldBackupDir })
+
+	root := t.TempDir()
+	actionNodeBackupDir = filepath.Join(root, "backup")
+	runnerHome := filepath.Join(root, "runner")
+	for _, major := range []string{"20", "24"} {
+		src := filepath.Join(actionNodeBackupDir, "node"+major, "node")
+		if err := os.MkdirAll(filepath.Dir(src), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(src, []byte("node"+major), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := ensureActionNodeRuntimes(runnerHome); err != nil {
+		t.Fatalf("ensureActionNodeRuntimes: %v", err)
+	}
+	for _, major := range []string{"20", "24"} {
+		dest := filepath.Join(runnerHome, "externals", "node"+major, "bin", "node")
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "node"+major {
+			t.Fatalf("node%s content = %q", major, got)
+		}
+		if !executableFile(dest) {
+			t.Fatalf("node%s was not executable", major)
+		}
+	}
+}
+
 func TestMintRegistrationToken_ContextCancel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Sleep past the test's context timeout — never reached.
