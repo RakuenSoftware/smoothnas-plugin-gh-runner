@@ -8,6 +8,8 @@ docker run --rm --entrypoint /home/runner/externals/node20/bin/node "$image" --v
 docker run --rm --entrypoint /home/runner/externals/node24/bin/node "$image" --version
 docker run --rm --entrypoint /bin/sh "$image" -c 'test ! -L /home/runner/externals/node20/bin/node'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test ! -L /home/runner/externals/node24/bin/node'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/share/smoothnas-actions-node/node20/node'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/share/smoothnas-actions-node/node24/node'
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT

@@ -65,6 +65,7 @@ const (
 )
 
 var resolvConfPath = "/etc/resolv.conf"
+var actionNodeBackupDir = "/usr/local/share/smoothnas-actions-node"
 
 type config struct {
 	mode          string
@@ -110,6 +111,9 @@ func main() {
 		if cfg.tokenKind != "pat" {
 			log.Fatal("worker mode requires a GitHub API token so the runner can mint fresh registration tokens")
 		}
+		if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
+			log.Fatal(err)
+		}
 		if err := runEphemeralOnce(ctx, cfg); err != nil && !errors.Is(err, context.Canceled) {
 			log.Fatal(err)
 		}
@@ -117,8 +121,14 @@ func main() {
 		if cfg.tokenKind != "pat" {
 			log.Fatal("loop mode requires a GitHub API token so the wrapper can mint fresh registration tokens")
 		}
+		if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
+			log.Fatal(err)
+		}
 		runEphemeralLoop(ctx, cfg)
 	case "persistent":
+		if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
+			log.Fatal(err)
+		}
 		if err := runPersistent(ctx, cfg); err != nil {
 			log.Fatal(err)
 		}
@@ -220,6 +230,63 @@ func runPersistent(ctx context.Context, cfg config) error {
 		return fmt.Errorf("run.sh exited: %w", runErr)
 	}
 	return nil
+}
+
+func ensureActionNodeRuntimes(runnerHome string) error {
+	for _, major := range []string{"20", "24"} {
+		dest := filepath.Join(runnerHome, "externals", "node"+major, "bin", "node")
+		if executableFile(dest) {
+			continue
+		}
+		src := filepath.Join(actionNodeBackupDir, "node"+major, "node")
+		if err := copyExecutable(src, dest); err != nil {
+			return fmt.Errorf("restore node%s action runtime: %w", major, err)
+		}
+		log.Printf("restored node%s action runtime to %s", major, dest)
+	}
+	return nil
+}
+
+func executableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return info.Mode()&0o111 != 0
+}
+
+func copyExecutable(src, dest string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	tmp := dest + ".tmp"
+	_ = os.Remove(tmp)
+	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o755)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(tmp)
+		return copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
+	}
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	_ = os.Remove(dest)
+	return os.Rename(tmp, dest)
 }
 
 func runEphemeralOnce(ctx context.Context, cfg config) error {
