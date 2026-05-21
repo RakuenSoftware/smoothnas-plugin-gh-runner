@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.34](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.33...v0.3.34) (2026-05-21)
+
+
+### Bug Fixes
+
+* bake action node runtime backups ([#82](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/82)) ([1341758](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/1341758))
+
 ## [0.3.33](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.32...v0.3.33) (2026-05-21)
 
 
