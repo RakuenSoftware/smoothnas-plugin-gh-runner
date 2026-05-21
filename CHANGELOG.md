@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.33](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.32...v0.3.33) (2026-05-21)
+
+
+### Bug Fixes
+
+* restore action node runtimes from job hook ([#80](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/80)) ([3cf13f8](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/3cf13f81a2fa488e344e2d52356ff9457a6da3fa))
+
 ## [0.3.32](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.31...v0.3.32) (2026-05-21)
 
 
