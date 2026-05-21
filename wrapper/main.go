@@ -93,23 +93,24 @@ var actionNodeSpecs = map[string]nodeRuntimeSpec{
 }
 
 type config struct {
-	mode          string
-	repoURL       string
-	token         string
-	tokenKind     string
-	labels        string
-	group         string
-	apiBase       string
-	runnerHome    string
-	ephemeral     bool
-	scope         scope
-	workerCount   int
-	workerCPUs    float64
-	workerMemory  int64
-	dockerHost    string
-	workerImage   string
-	bindWorkspace bool
-	dnsServers    []string
+	mode           string
+	repoURL        string
+	token          string
+	tokenKind      string
+	labels         string
+	group          string
+	apiBase        string
+	runnerHome     string
+	ephemeral      bool
+	scope          scope
+	workerCount    int
+	workerCPUs     float64
+	workerMemory   int64
+	dockerHost     string
+	workerImage    string
+	bindWorkspace  bool
+	dnsServers     []string
+	workspaceRepos []string
 }
 
 func main() {
@@ -178,23 +179,24 @@ func loadConfig() (config, error) {
 	}
 
 	return config{
-		mode:          envOr("GH_RUNNER_MODE", "controller"),
-		repoURL:       repoURL,
-		token:         token,
-		tokenKind:     classifyToken(token),
-		labels:        envOr("GH_RUNNER_LABELS", "self-hosted,linux,x64,smoothnas"),
-		group:         envOr("GH_RUNNER_GROUP", "default"),
-		apiBase:       envOr("GH_API_BASE", defaultAPIBase),
-		runnerHome:    envOr("RUNNER_HOME", defaultRunnerHome),
-		ephemeral:     envBool("GH_RUNNER_EPHEMERAL", true),
-		scope:         sc,
-		workerCount:   envInt("GH_RUNNER_WORKERS", defaultWorkers),
-		workerCPUs:    envFloat("GH_RUNNER_CPUS", 0),
-		workerMemory:  envBytes("GH_RUNNER_MEMORY", 0),
-		dockerHost:    envOr("DOCKER_HOST", defaultDockerHost),
-		workerImage:   os.Getenv("GH_RUNNER_WORKER_IMAGE"),
-		bindWorkspace: envBool("GH_RUNNER_BIND_WORKSPACE", false),
-		dnsServers:    envList("GH_RUNNER_DNS_SERVERS", ""),
+		mode:           envOr("GH_RUNNER_MODE", "controller"),
+		repoURL:        repoURL,
+		token:          token,
+		tokenKind:      classifyToken(token),
+		labels:         envOr("GH_RUNNER_LABELS", "self-hosted,linux,x64,smoothnas"),
+		group:          envOr("GH_RUNNER_GROUP", "default"),
+		apiBase:        envOr("GH_API_BASE", defaultAPIBase),
+		runnerHome:     envOr("RUNNER_HOME", defaultRunnerHome),
+		ephemeral:      envBool("GH_RUNNER_EPHEMERAL", true),
+		scope:          sc,
+		workerCount:    envInt("GH_RUNNER_WORKERS", defaultWorkers),
+		workerCPUs:     envFloat("GH_RUNNER_CPUS", 0),
+		workerMemory:   envBytes("GH_RUNNER_MEMORY", 0),
+		dockerHost:     envOr("DOCKER_HOST", defaultDockerHost),
+		workerImage:    os.Getenv("GH_RUNNER_WORKER_IMAGE"),
+		bindWorkspace:  envBool("GH_RUNNER_BIND_WORKSPACE", false),
+		dnsServers:     envList("GH_RUNNER_DNS_SERVERS", ""),
+		workspaceRepos: envList("GH_RUNNER_WORKSPACE_REPOS", ""),
 	}, nil
 }
 
@@ -241,6 +243,9 @@ func runPersistent(ctx context.Context, cfg config) error {
 			return fmt.Errorf("config.sh: %w", err)
 		}
 		log.Printf("registered as %q", runnerName)
+	}
+	if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
+		log.Printf("precreate runner workspaces: %v", err)
 	}
 
 	runErr := runRunSh(ctx, cfg.runnerHome)
@@ -405,6 +410,9 @@ func runEphemeralOnce(ctx context.Context, cfg config) error {
 		return fmt.Errorf("config.sh: %w", err)
 	}
 	log.Printf("registered ephemeral runner %q", runnerName)
+	if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
+		log.Printf("precreate runner workspaces: %v", err)
+	}
 
 	runErr := runRunSh(ctx, cfg.runnerHome)
 	if ctx.Err() != nil {
@@ -463,6 +471,9 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 			continue
 		}
 		log.Printf("registered ephemeral runner %q", runnerName)
+		if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
+			log.Printf("precreate runner workspaces: %v", err)
+		}
 
 		runErr := runRunSh(ctx, cfg.runnerHome)
 		if ctx.Err() != nil {
@@ -593,6 +604,53 @@ func cleanupRunnerState(runnerHome string) error {
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func ensureRunnerWorkspaces(ctx context.Context, cfg config) error {
+	workRoot := filepath.Join(cfg.runnerHome, "_work")
+	if err := os.MkdirAll(workRoot, 0o755); err != nil {
+		return fmt.Errorf("create _work: %w", err)
+	}
+	repos, err := runnerWorkspaceRepos(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	for _, repo := range repos {
+		if err := os.MkdirAll(filepath.Join(workRoot, repo, repo), 0o755); err != nil {
+			return fmt.Errorf("create workspace for %s: %w", repo, err)
+		}
+	}
+	if len(repos) > 0 {
+		log.Printf("precreated %d runner workspaces", len(repos))
+	}
+	return nil
+}
+
+func runnerWorkspaceRepos(ctx context.Context, cfg config) ([]string, error) {
+	if len(cfg.workspaceRepos) > 0 {
+		return cleanRepoNames(cfg.workspaceRepos), nil
+	}
+	if !cfg.scope.IsOrg() {
+		return []string{cfg.scope.repo}, nil
+	}
+	return listOrgRepoNames(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
+}
+
+func cleanRepoNames(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := map[string]bool{}
+	for _, repo := range in {
+		repo = strings.TrimSpace(repo)
+		if repo == "" || strings.Contains(repo, "/") || repo == "." || repo == ".." {
+			continue
+		}
+		if seen[repo] {
+			continue
+		}
+		seen[repo] = true
+		out = append(out, repo)
+	}
+	return out
 }
 
 type dockerClient struct {
@@ -1302,6 +1360,19 @@ func runnersEndpoint(apiBase string, sc scope) (string, error) {
 	return out.String(), nil
 }
 
+func orgReposEndpoint(apiBase string, sc scope) (string, error) {
+	if !sc.IsOrg() {
+		return "", errors.New("org repos endpoint requires org scope")
+	}
+	base, err := url.Parse(apiBase)
+	if err != nil {
+		return "", fmt.Errorf("parse api base: %w", err)
+	}
+	out := *base
+	out.Path = path.Join(base.Path, "orgs", sc.owner, "repos")
+	return out.String(), nil
+}
+
 func ghEndpoint(apiBase string, sc scope, tokenAction string) (string, error) {
 	base, err := url.Parse(apiBase)
 	if err != nil {
@@ -1323,6 +1394,10 @@ type githubRunner struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	Busy   bool   `json:"busy"`
+}
+
+type githubRepo struct {
+	Name string `json:"name"`
 }
 
 func removeStaleGitHubRunners(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string) error {
@@ -1392,6 +1467,41 @@ func listGitHubRunners(ctx context.Context, client *http.Client, apiBase string,
 		out = append(out, resp.Runners...)
 		if len(resp.Runners) < 100 {
 			return out, nil
+		}
+	}
+}
+
+func listOrgRepoNames(ctx context.Context, client *http.Client, apiBase string, sc scope, pat string) ([]string, error) {
+	endpoint, err := orgReposEndpoint(apiBase, sc)
+	if err != nil {
+		return nil, err
+	}
+	repos := []string{}
+	seen := map[string]bool{}
+	for page := 1; ; page++ {
+		u, err := url.Parse(endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("parse org repos endpoint: %w", err)
+		}
+		q := u.Query()
+		q.Set("type", "all")
+		q.Set("per_page", "100")
+		q.Set("page", strconv.Itoa(page))
+		u.RawQuery = q.Encode()
+
+		var resp []githubRepo
+		if err := ghAPIJSON(ctx, client, http.MethodGet, u.String(), pat, nil, &resp); err != nil {
+			return nil, err
+		}
+		for _, repo := range resp {
+			if repo.Name == "" || seen[repo.Name] {
+				continue
+			}
+			seen[repo.Name] = true
+			repos = append(repos, repo.Name)
+		}
+		if len(resp) < 100 {
+			return repos, nil
 		}
 	}
 }

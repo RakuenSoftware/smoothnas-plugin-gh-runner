@@ -263,6 +263,40 @@ func TestCleanupRunnerState(t *testing.T) {
 	}
 }
 
+func TestEnsureRunnerWorkspacesRepoScope(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config{
+		runnerHome: dir,
+		scope:      scope{owner: "owner", repo: "repo"},
+	}
+	if err := ensureRunnerWorkspaces(context.Background(), cfg); err != nil {
+		t.Fatalf("ensureRunnerWorkspaces: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "_work", "repo", "repo")); err != nil {
+		t.Fatalf("workspace was not created: %v", err)
+	}
+}
+
+func TestEnsureRunnerWorkspacesConfiguredRepos(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config{
+		runnerHome:     dir,
+		scope:          scope{owner: "org"},
+		workspaceRepos: []string{" repo-a ", "repo-a", "owner/repo-b", "..", "repo-c"},
+	}
+	if err := ensureRunnerWorkspaces(context.Background(), cfg); err != nil {
+		t.Fatalf("ensureRunnerWorkspaces: %v", err)
+	}
+	for _, repo := range []string{"repo-a", "repo-c"} {
+		if _, err := os.Stat(filepath.Join(dir, "_work", repo, repo)); err != nil {
+			t.Fatalf("workspace %s was not created: %v", repo, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "_work", "repo-b", "repo-b")); !os.IsNotExist(err) {
+		t.Fatalf("invalid repo workspace exists or stat failed: %v", err)
+	}
+}
+
 func TestMintRegistrationToken_Repo(t *testing.T) {
 	var got struct {
 		method string

@@ -56,6 +56,8 @@ RUN apt-get update \
         sudo \
         tar \
         xz-utils \
+ && install -m 0755 /usr/bin/docker /usr/local/bin/docker \
+ && /usr/local/bin/docker --version \
  && rm -rf /var/lib/apt/lists/*
 
 # Non-root runner user. Matches what GitHub's official install
