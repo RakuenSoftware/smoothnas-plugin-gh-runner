@@ -235,6 +235,10 @@ func runPersistent(ctx context.Context, cfg config) error {
 	}
 	runnerName := runnerNameFromHostname(hostname)
 
+	if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
+		log.Printf("precreate runner workspaces: %v", err)
+	}
+
 	if runnerConfigured(cfg.runnerHome) {
 		log.Printf("runner already configured; starting existing registration")
 	} else {
@@ -243,9 +247,6 @@ func runPersistent(ctx context.Context, cfg config) error {
 			return fmt.Errorf("config.sh: %w", err)
 		}
 		log.Printf("registered as %q", runnerName)
-	}
-	if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
-		log.Printf("precreate runner workspaces: %v", err)
 	}
 
 	runErr := runRunSh(ctx, cfg.runnerHome)
@@ -399,6 +400,9 @@ func runEphemeralOnce(ctx context.Context, cfg config) error {
 	if err := cleanupRunnerState(cfg.runnerHome); err != nil {
 		log.Printf("cleanup before worker start: %v", err)
 	}
+	if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
+		log.Printf("precreate runner workspaces: %v", err)
+	}
 
 	regToken, err := mintRegistrationToken(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
 	if err != nil {
@@ -410,9 +414,6 @@ func runEphemeralOnce(ctx context.Context, cfg config) error {
 		return fmt.Errorf("config.sh: %w", err)
 	}
 	log.Printf("registered ephemeral runner %q", runnerName)
-	if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
-		log.Printf("precreate runner workspaces: %v", err)
-	}
 
 	runErr := runRunSh(ctx, cfg.runnerHome)
 	if ctx.Err() != nil {
@@ -448,6 +449,9 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 		if err := cleanupRunnerState(cfg.runnerHome); err != nil {
 			log.Printf("cleanup before cycle %d: %v", cycle, err)
 		}
+		if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
+			log.Printf("precreate runner workspaces: %v", err)
+		}
 
 		regToken, err := mintRegistrationToken(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
 		if err != nil {
@@ -471,9 +475,6 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 			continue
 		}
 		log.Printf("registered ephemeral runner %q", runnerName)
-		if err := ensureRunnerWorkspaces(ctx, cfg); err != nil {
-			log.Printf("precreate runner workspaces: %v", err)
-		}
 
 		runErr := runRunSh(ctx, cfg.runnerHome)
 		if ctx.Err() != nil {
@@ -957,6 +958,9 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 	}
 	if len(cfg.dnsServers) > 0 {
 		env = append(env, "GH_RUNNER_DNS_SERVERS="+strings.Join(cfg.dnsServers, ","))
+	}
+	if len(cfg.workspaceRepos) > 0 {
+		env = append(env, "GH_RUNNER_WORKSPACE_REPOS="+strings.Join(cfg.workspaceRepos, ","))
 	}
 	req := createContainerRequest{
 		Image:  image,
