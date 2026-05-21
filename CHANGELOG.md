@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.22](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.21...v0.3.22) (2026-05-21)
+
+
+### Bug Fixes
+
+* remove runner node runtime restore ([#58](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/58)) ([534583a](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/534583ab40d296b048f65515b5451bca2bc61836))
+
 ## [0.3.21](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.20...v0.3.21) (2026-05-20)
 
 
