@@ -58,6 +58,7 @@ const (
 	maxRunnerNameLen  = 64
 	recycleDelay      = 10 * time.Second
 	defaultDockerHost = "unix:///var/run/docker.sock"
+	hostRuntimeSocket = "/run/smoothnas-runtime/docker.sock"
 	workerLabelKey    = "io.smoothnas.gh-runner.worker"
 	staleSweepEvery   = 1 * time.Minute
 	registrationGrace = 2 * time.Minute
@@ -517,7 +518,7 @@ func runController(ctx context.Context, cfg config) error {
 			return err
 		}
 	}
-	dockerSocketSource, err := hostMountSource(self, "/var/run/docker.sock")
+	dockerSocketSource, err := dockerSocketSource(self, "/var/run/docker.sock")
 	if err != nil {
 		return fmt.Errorf("find Docker socket mount: %w", err)
 	}
@@ -976,6 +977,17 @@ func hostMountSource(inspect containerInspect, destination string) (string, erro
 		}
 	}
 	return "", fmt.Errorf("container has no host mount for %s", destination)
+}
+
+func dockerSocketSource(inspect containerInspect, destination string) (string, error) {
+	source, err := hostMountSource(inspect, destination)
+	if err == nil {
+		return source, nil
+	}
+	if _, statErr := os.Stat(hostRuntimeSocket); statErr == nil {
+		return hostRuntimeSocket, nil
+	}
+	return "", err
 }
 
 func containerName(c containerSummary) string {
