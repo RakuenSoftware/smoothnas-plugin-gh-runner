@@ -647,6 +647,16 @@ set -eu
 runner_home="${RUNNER_HOME:-/home/runner}"
 repo="${GITHUB_REPOSITORY##*/}"
 
+for major in 20 24; do
+  dest="${runner_home}/externals/node${major}/bin/node"
+  src="/usr/local/share/smoothnas-actions-node/node${major}/node"
+  if [ ! -x "${dest}" ] && [ -x "${src}" ]; then
+    mkdir -p "$(dirname "${dest}")"
+    cp "${src}" "${dest}"
+    chmod 755 "${dest}"
+  fi
+done
+
 if [ -n "${repo}" ]; then
   mkdir -p "${runner_home}/_work/${repo}/${repo}"
 fi
