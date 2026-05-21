@@ -463,6 +463,7 @@ type inspectHostConfig struct {
 	NetworkMode string `json:"NetworkMode"`
 	NanoCPUs    int64  `json:"NanoCpus"`
 	Memory      int64  `json:"Memory"`
+	Binds       []string
 }
 
 type createContainerRequest struct {
@@ -516,6 +517,10 @@ func runController(ctx context.Context, cfg config) error {
 			return err
 		}
 	}
+	dockerSocketSource, err := hostMountSource(self, "/var/run/docker.sock")
+	if err != nil {
+		return fmt.Errorf("find Docker socket mount: %w", err)
+	}
 	image := cfg.workerImage
 	if image == "" {
 		image = self.Config.Image
@@ -556,7 +561,7 @@ func runController(ctx context.Context, cfg config) error {
 			}
 			lastStaleSweep = time.Now()
 		}
-		if err := reconcileWorkers(ctx, dc, cfg, image, workspaceSource, networkMode); err != nil {
+		if err := reconcileWorkers(ctx, dc, cfg, image, workspaceSource, dockerSocketSource, networkMode); err != nil {
 			log.Printf("reconcile workers: %v", err)
 		}
 		select {
@@ -567,7 +572,7 @@ func runController(ctx context.Context, cfg config) error {
 	}
 }
 
-func reconcileWorkers(ctx context.Context, dc *dockerClient, cfg config, image, workspaceSource, networkMode string) error {
+func reconcileWorkers(ctx context.Context, dc *dockerClient, cfg config, image, workspaceSource, dockerSocketSource, networkMode string) error {
 	workers, err := dc.listWorkers(ctx)
 	if err != nil {
 		return err
@@ -593,7 +598,7 @@ func reconcileWorkers(ctx context.Context, dc *dockerClient, cfg config, image, 
 		}
 	}
 	for running < cfg.workerCount {
-		if err := startWorker(ctx, dc, cfg, image, workspaceSource, networkMode); err != nil {
+		if err := startWorker(ctx, dc, cfg, image, workspaceSource, dockerSocketSource, networkMode); err != nil {
 			return err
 		}
 		running++
@@ -688,7 +693,8 @@ func workerSpecMatches(inspect containerInspect, cfg config, image string) bool 
 	if inspect.Config.Image != image {
 		return false
 	}
-	return workerResourceLimitsMatch(inspect.HostConfig, cfg)
+	return workerResourceLimitsMatch(inspect.HostConfig, cfg) &&
+		hostConfigHasDestinationBind(inspect.HostConfig.Binds, "/var/run/docker.sock")
 }
 
 func workerResourceLimitsMatch(host inspectHostConfig, cfg config) bool {
@@ -696,16 +702,26 @@ func workerResourceLimitsMatch(host inspectHostConfig, cfg config) bool {
 		host.Memory == cfg.workerMemory
 }
 
-func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, workspaceSource, networkMode string) error {
+func hostConfigHasDestinationBind(binds []string, destination string) bool {
+	for _, bind := range binds {
+		parts := strings.Split(bind, ":")
+		if len(parts) >= 2 && filepath.Clean(parts[1]) == filepath.Clean(destination) {
+			return true
+		}
+	}
+	return false
+}
+
+func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, workspaceSource, dockerSocketSource, networkMode string) error {
 	name := fmt.Sprintf("gh-runner-worker-%d", time.Now().UnixNano())
-	var binds []string
+	binds := []string{dockerSocketSource + ":/var/run/docker.sock:rw"}
 	if cfg.bindWorkspace {
 		containerWorkspace := filepath.Join(cfg.runnerHome, "_work", "workers", name)
 		if err := os.MkdirAll(containerWorkspace, 0o750); err != nil {
 			return fmt.Errorf("create worker workspace: %w", err)
 		}
 		hostWorkspace := filepath.Join(workspaceSource, "workers", name)
-		binds = []string{hostWorkspace + ":" + filepath.Join(cfg.runnerHome, "_work") + ":rw"}
+		binds = append(binds, hostWorkspace+":"+filepath.Join(cfg.runnerHome, "_work")+":rw")
 	}
 	env := []string{
 		"GH_RUNNER_MODE=worker",
@@ -716,6 +732,7 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		"GH_API_BASE=" + cfg.apiBase,
 		"GH_RUNNER_EPHEMERAL=true",
 		"RUNNER_HOME=" + cfg.runnerHome,
+		"DOCKER_HOST=unix:///var/run/docker.sock",
 	}
 	if len(cfg.dnsServers) > 0 {
 		env = append(env, "GH_RUNNER_DNS_SERVERS="+strings.Join(cfg.dnsServers, ","))

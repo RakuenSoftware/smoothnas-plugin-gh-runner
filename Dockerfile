@@ -39,14 +39,19 @@ ENV RUNNER_ALLOW_RUNASROOT=1
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
 # GitHub + runtime API calls; git/ca-certs/tar/sudo because the runner expects
-# them; libicu for the .NET-based runner host).
+# them; libicu for the .NET-based runner host). Self-hosted workflow jobs also
+# expect the hosted-runner basics: gh for release dispatch and docker-cli for
+# buildx/build-push against the mounted SmoothNAS runtime socket.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
+        docker-cli \
         git \
+        gh \
         jq \
         libicu76 \
+        nodejs \
         sudo \
         tar \
         xz-utils \
@@ -112,6 +117,13 @@ RUN set -eux; \
 # Runner's bundled dependency installer needs root.
 USER root
 RUN /home/runner/bin/installdependencies.sh \
+ && for major in 20 24; do \
+      install -D -m 0755 \
+        "/home/runner/externals/node${major}/bin/node" \
+        "/opt/actions-node-runtimes/node${major}/bin/node"; \
+      ln -sf "/opt/actions-node-runtimes/node${major}/bin/node" \
+        "/home/runner/externals/node${major}/bin/node"; \
+    done \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=wrapper-build /smoothnas-wrapper /usr/local/bin/smoothnas-wrapper
