@@ -36,6 +36,7 @@ ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
 # GitHub + runtime API calls; git/ca-certs/tar/sudo because the runner expects
