@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.24](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.23...v0.3.24) (2026-05-21)
+
+
+### Bug Fixes
+
+* use SmoothNAS runtime socket for workers ([#62](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/62)) ([0dfb0d6](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/0dfb0d650883c1ecbc10e3ac23be7e66c453e728))
+
 ## [0.3.23](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.22...v0.3.23) (2026-05-21)
 
 
