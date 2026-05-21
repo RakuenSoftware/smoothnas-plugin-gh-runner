@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.32](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.31...v0.3.32) (2026-05-21)
+
+
+### Bug Fixes
+
+* create runner workspace from job start hook ([#78](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/78)) ([5e59897](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/5e59897afc815fa1d9b5762aa948173badfd2aa6))
+
 ## [0.3.31](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.30...v0.3.31) (2026-05-21)
 
 
