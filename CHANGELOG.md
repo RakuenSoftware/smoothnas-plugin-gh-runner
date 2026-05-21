@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.29](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.28...v0.3.29) (2026-05-21)
+
+
+### Bug Fixes
+
+* allow runner without ICU data ([#72](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/72)) ([ef87f3a](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/ef87f3a65ff75c6f0014821756b6a654547b021b))
+
 ## [0.3.28](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.27...v0.3.28) (2026-05-21)
 
 
