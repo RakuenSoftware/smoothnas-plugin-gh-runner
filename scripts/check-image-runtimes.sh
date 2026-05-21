@@ -6,6 +6,8 @@ image="${1:?usage: check-image-runtimes.sh IMAGE}"
 docker run --rm --entrypoint /bin/sh "$image" -c 'test "$( . /etc/os-release && printf %s "$ID:$VERSION_ID" )" = debian:13'
 docker run --rm --entrypoint /home/runner/externals/node20/bin/node "$image" --version
 docker run --rm --entrypoint /home/runner/externals/node24/bin/node "$image" --version
+docker run --rm --entrypoint /bin/sh "$image" -c 'test ! -L /home/runner/externals/node20/bin/node'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test ! -L /home/runner/externals/node24/bin/node'
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -29,7 +31,7 @@ wanted = {
         "whiteout": "home/runner/externals/node24/bin/.wh.node",
     },
 }
-seen = {major: {"node": False, "whiteout": False} for major in wanted}
+seen = {major: {"node": False, "node_symlink": False, "whiteout": False} for major in wanted}
 
 
 def clean(name):
@@ -50,6 +52,8 @@ def scan_layer(blob):
             for major, paths in wanted.items():
                 if name == paths["node"]:
                     seen[major]["node"] = True
+                    if member.issym():
+                        seen[major]["node_symlink"] = True
                 if name == paths["whiteout"]:
                     seen[major]["whiteout"] = True
 
@@ -87,6 +91,9 @@ failed = False
 for major, state in seen.items():
     if not state["node"]:
         print(f"node{major}/bin/node is missing from saved image layers", file=sys.stderr)
+        failed = True
+    if state["node_symlink"]:
+        print(f"node{major}/bin/node must be a real file, not a symlink", file=sys.stderr)
         failed = True
     if state["whiteout"]:
         print(f"node{major}/bin/node has an OCI whiteout in saved image layers", file=sys.stderr)

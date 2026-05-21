@@ -41,7 +41,7 @@ ENV RUNNER_ALLOW_RUNASROOT=1
 # GitHub + runtime API calls; git/ca-certs/tar/sudo because the runner expects
 # them; libicu for the .NET-based runner host). Self-hosted workflow jobs also
 # expect the hosted-runner basics: gh for release dispatch and docker-cli for
-# buildx/build-push against the mounted SmoothNAS runtime socket.
+# build/push against the mounted SmoothNAS runtime socket.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -68,10 +68,9 @@ USER runner
 WORKDIR /home/runner
 
 # Pull and verify the actions/runner tarball, then install Node runtime
-# binaries in the same filesystem layer. SmoothNAS imports OCI images
-# into LXC rootfs templates; keeping the runner's externals tree and the
-# explicit bin/node files together avoids a bad flattened template where
-# npm/npx symlinks survive but bin/node from a later layer is missing.
+# binaries in the runner's externals tree. JavaScript actions execute these
+# exact paths; keep real files here because SmoothNAS' LXC rootfs import does
+# not preserve symlink targets outside the runner tree consistently.
 RUN set -eux; \
     case "${TARGETARCH}" in \
       amd64) runner_arch="x64"; sha256="${RUNNER_SHA256_X64}" ;; \
@@ -118,11 +117,8 @@ RUN set -eux; \
 USER root
 RUN /home/runner/bin/installdependencies.sh \
  && for major in 20 24; do \
-      install -D -m 0755 \
-        "/home/runner/externals/node${major}/bin/node" \
-        "/opt/actions-node-runtimes/node${major}/bin/node"; \
-      ln -sf "/opt/actions-node-runtimes/node${major}/bin/node" \
-        "/home/runner/externals/node${major}/bin/node"; \
+      test -x "/home/runner/externals/node${major}/bin/node"; \
+      "/home/runner/externals/node${major}/bin/node" --version; \
     done \
  && rm -rf /var/lib/apt/lists/*
 
