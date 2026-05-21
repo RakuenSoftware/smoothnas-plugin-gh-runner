@@ -984,6 +984,9 @@ func dockerSocketSource(inspect containerInspect, destination string) (string, e
 	if err == nil {
 		return source, nil
 	}
+	if _, statErr := os.Stat(destination); statErr == nil {
+		return hostRuntimeSocket, nil
+	}
 	if _, statErr := os.Stat(hostRuntimeSocket); statErr == nil {
 		return hostRuntimeSocket, nil
 	}
