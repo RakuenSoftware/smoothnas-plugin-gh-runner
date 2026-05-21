@@ -44,6 +44,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -66,6 +67,30 @@ const (
 
 var resolvConfPath = "/etc/resolv.conf"
 var actionNodeBackupDir = "/usr/local/share/smoothnas-actions-node"
+var runExternalCommand = runCommand
+
+type nodeRuntimeSpec struct {
+	version string
+	sha256  map[string]string
+}
+
+var actionNodeSpecs = map[string]nodeRuntimeSpec{
+	"20": {
+		version: "20.20.2",
+		sha256: map[string]string{
+			"arm":   "f704ce75d9a194c30c378049b516000e49612c2f046ac83c7435eb33ec2926f0",
+			"arm64": "73093db209e4e9e09dd7d15a47aeaab1b74833830df03efa5f942a1122c5fa71",
+			"x64":   "df770b2a6f130ed8627c9782c988fda9669fa23898329a61a871e32f965e007d",
+		},
+	},
+	"24": {
+		version: "24.15.0",
+		sha256: map[string]string{
+			"arm64": "f3d5a797b5d210ce8e2cb265544c8e482eaedcb8aa409a8b46da7e8595d0dda0",
+			"x64":   "472655581fb851559730c48763e0c9d3bc25975c59d518003fc0849d3e4ba0f6",
+		},
+	},
+}
 
 type config struct {
 	mode          string
@@ -238,11 +263,80 @@ func ensureActionNodeRuntimes(runnerHome string) error {
 		if executableFile(dest) {
 			continue
 		}
-		src := filepath.Join(actionNodeBackupDir, "node"+major, "node")
-		if err := copyExecutable(src, dest); err != nil {
+		if err := restoreActionNodeRuntime(major, dest); err != nil {
 			return fmt.Errorf("restore node%s action runtime: %w", major, err)
 		}
 		log.Printf("restored node%s action runtime to %s", major, dest)
+	}
+	return nil
+}
+
+func restoreActionNodeRuntime(major, dest string) error {
+	src := filepath.Join(actionNodeBackupDir, "node"+major, "node")
+	if executableFile(src) {
+		return copyExecutable(src, dest)
+	}
+	log.Printf("node%s backup runtime missing at %s; downloading pinned runtime", major, src)
+	return downloadActionNodeRuntime(context.Background(), major, dest)
+}
+
+func downloadActionNodeRuntime(ctx context.Context, major, dest string) error {
+	spec, ok := actionNodeSpecs[major]
+	if !ok {
+		return fmt.Errorf("unsupported node runtime major %q", major)
+	}
+	nodeArch, err := nodeRuntimeArch(runtime.GOARCH)
+	if err != nil {
+		return err
+	}
+	sha256, ok := spec.sha256[nodeArch]
+	if !ok {
+		return fmt.Errorf("node%s does not publish linux-%s binaries", major, nodeArch)
+	}
+
+	tmpDir, err := os.MkdirTemp("", "smoothnas-node-"+major+"-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+
+	archive := filepath.Join(tmpDir, "node.tar.xz")
+	extractDir := fmt.Sprintf("node-v%s-linux-%s", spec.version, nodeArch)
+	url := fmt.Sprintf("https://nodejs.org/dist/v%s/%s.tar.xz", spec.version, extractDir)
+	if err := runExternalCommand(ctx, tmpDir, "curl", "-fsSLo", archive, url); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "node.sha256"), []byte(sha256+"  node.tar.xz\n"), 0o644); err != nil {
+		return err
+	}
+	if err := runExternalCommand(ctx, tmpDir, "sha256sum", "-c", "node.sha256"); err != nil {
+		return err
+	}
+	if err := runExternalCommand(ctx, tmpDir, "tar", "-xJf", archive); err != nil {
+		return err
+	}
+	return copyExecutable(filepath.Join(tmpDir, extractDir, "bin", "node"), dest)
+}
+
+func nodeRuntimeArch(goarch string) (string, error) {
+	switch goarch {
+	case "amd64":
+		return "x64", nil
+	case "arm64":
+		return "arm64", nil
+	case "arm":
+		return "armv7l", nil
+	default:
+		return "", fmt.Errorf("unsupported architecture %q", goarch)
+	}
+}
+
+func runCommand(ctx context.Context, dir, name string, args ...string) error {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }
