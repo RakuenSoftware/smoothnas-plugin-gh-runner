@@ -57,7 +57,6 @@ const (
 	runnerNamePrefix  = "smoothnas-"
 	maxRunnerNameLen  = 64
 	recycleDelay      = 10 * time.Second
-	nodeRepairEvery   = 200 * time.Millisecond
 	defaultDockerHost = "unix:///var/run/docker.sock"
 	workerLabelKey    = "io.smoothnas.gh-runner.worker"
 	staleSweepEvery   = 1 * time.Minute
@@ -65,7 +64,6 @@ const (
 )
 
 var resolvConfPath = "/etc/resolv.conf"
-var nodeRuntimeBackup = "/opt/actions-node-runtimes"
 
 type config struct {
 	mode          string
@@ -185,96 +183,8 @@ func stabilizeContainerDNS(servers []string) error {
 	return os.WriteFile(resolvConfPath, []byte(b.String()), 0o644)
 }
 
-func startActionNodeRuntimeRepair(ctx context.Context, runnerHome string) func() {
-	repairCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		if err := ensureActionNodeRuntimes(runnerHome); err != nil {
-			log.Printf("restore action node runtimes: %v", err)
-		}
-		ticker := time.NewTicker(nodeRepairEvery)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-repairCtx.Done():
-				return
-			case <-ticker.C:
-				if err := ensureActionNodeRuntimes(runnerHome); err != nil {
-					log.Printf("restore action node runtimes: %v", err)
-				}
-			}
-		}
-	}()
-	return func() {
-		cancel()
-		<-done
-	}
-}
-
-func ensureActionNodeRuntimes(runnerHome string) error {
-	if runnerHome == "" {
-		runnerHome = defaultRunnerHome
-	}
-	for _, major := range []string{"20", "24"} {
-		target := filepath.Join(runnerHome, "externals", "node"+major, "bin", "node")
-		if executableFile(target) {
-			continue
-		}
-		backup := filepath.Join(nodeRuntimeBackup, "node"+major, "bin", "node")
-		if !executableFile(backup) {
-			return fmt.Errorf("backup Node %s runtime missing at %s", major, backup)
-		}
-		if err := copyExecutable(backup, target); err != nil {
-			return fmt.Errorf("restore Node %s runtime: %w", major, err)
-		}
-		log.Printf("restored GitHub Actions Node %s runtime to %s", major, target)
-	}
-	return nil
-}
-
-func executableFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir() && info.Mode()&0o111 != 0
-}
-
-func copyExecutable(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	tmp := dst + ".tmp"
-	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		_ = out.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := out.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := os.Chmod(tmp, 0o755); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, dst)
-}
-
 func runPersistent(ctx context.Context, cfg config) error {
 	log.Printf("registering persistent runner: scope=%s token=%s labels=%q", cfg.scope, cfg.tokenKind, cfg.labels)
-	if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
-		return err
-	}
-	stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
-	defer stopRepair()
 
 	regToken, err := resolveRegistrationToken(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token, cfg.tokenKind)
 	if err != nil {
@@ -322,11 +232,6 @@ func runEphemeralOnce(ctx context.Context, cfg config) error {
 	if err := cleanupRunnerState(cfg.runnerHome); err != nil {
 		log.Printf("cleanup before worker start: %v", err)
 	}
-	if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
-		return err
-	}
-	stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
-	defer stopRepair()
 
 	regToken, err := mintRegistrationToken(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
 	if err != nil {
@@ -373,18 +278,9 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 		if err := cleanupRunnerState(cfg.runnerHome); err != nil {
 			log.Printf("cleanup before cycle %d: %v", cycle, err)
 		}
-		if err := ensureActionNodeRuntimes(cfg.runnerHome); err != nil {
-			log.Printf("restore action node runtimes: %v", err)
-			if !sleepOrDone(ctx, recycleDelay) {
-				return
-			}
-			continue
-		}
-		stopRepair := startActionNodeRuntimeRepair(ctx, cfg.runnerHome)
 
 		regToken, err := mintRegistrationToken(ctx, http.DefaultClient, cfg.apiBase, cfg.scope, cfg.token)
 		if err != nil {
-			stopRepair()
 			log.Printf("mint registration token: %v", err)
 			if !sleepOrDone(ctx, recycleDelay) {
 				return
@@ -395,7 +291,6 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 		runnerName := runnerNameWithSuffix(baseName, fmt.Sprintf("-%d-%d", time.Now().Unix(), cycle))
 		configArgs := buildConfigArgs(cfg.repoURL, regToken, cfg.labels, cfg.group, runnerName, cfg.scope.IsOrg(), true)
 		if err := runScript(ctx, cfg.runnerHome, "./config.sh", configArgs); err != nil {
-			stopRepair()
 			if ctx.Err() != nil {
 				return
 			}
@@ -408,7 +303,6 @@ func runEphemeralLoop(ctx context.Context, cfg config) {
 		log.Printf("registered ephemeral runner %q", runnerName)
 
 		runErr := runRunSh(ctx, cfg.runnerHome)
-		stopRepair()
 		if ctx.Err() != nil {
 			deregister(context.Background(), http.DefaultClient, cfg.runnerHome, cfg.apiBase, cfg.scope, cfg.token, cfg.tokenKind)
 			_ = cleanupRunnerState(cfg.runnerHome)
