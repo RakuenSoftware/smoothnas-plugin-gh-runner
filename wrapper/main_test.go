@@ -316,6 +316,19 @@ func TestEnsureRunnerJobHooks(t *testing.T) {
 	if info.Mode()&0o111 == 0 {
 		t.Fatalf("hook is not executable: mode=%v", info.Mode())
 	}
+	hook, err := os.ReadFile(hookPath)
+	if err != nil {
+		t.Fatalf("read hook: %v", err)
+	}
+	for _, want := range []string{
+		"src=\"/usr/local/share/smoothnas-actions-node/node${major}/node\"",
+		"for major in 20 24",
+		"_work/${repo}/${repo}",
+	} {
+		if !strings.Contains(string(hook), want) {
+			t.Fatalf("hook is missing %q:\n%s", want, hook)
+		}
+	}
 }
 
 func TestMintRegistrationToken_Repo(t *testing.T) {
