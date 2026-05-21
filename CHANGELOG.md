@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.31](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.30...v0.3.31) (2026-05-21)
+
+
+### Bug Fixes
+
+* precreate workspaces before runner registration ([#76](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/76)) ([5f30439](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/5f304393c57be01de105558edd76b5161e2210bc))
+
 ## [0.3.30](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.29...v0.3.30) (2026-05-21)
 
 
