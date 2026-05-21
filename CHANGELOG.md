@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.25](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.24...v0.3.25) (2026-05-21)
+
+
+### Bug Fixes
+
+* detect controller Docker socket ([#64](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/64)) ([769e79c](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/769e79cefe244308cfe7b5f0ca452340e12a1fea))
+
 ## [0.3.24](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.23...v0.3.24) (2026-05-21)
 
 
