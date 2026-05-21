@@ -67,6 +67,7 @@ const (
 
 var resolvConfPath = "/etc/resolv.conf"
 var actionNodeBackupDir = "/usr/local/share/smoothnas-actions-node"
+var actionNodeFallbackBackupDir = "/opt/smoothnas/actions-node"
 var runExternalCommand = runCommand
 
 type nodeRuntimeSpec struct {
@@ -287,12 +288,18 @@ func ensureActionNodeRuntimes(runnerHome string) error {
 }
 
 func restoreActionNodeRuntime(major, dest string) error {
-	src := filepath.Join(actionNodeBackupDir, "node"+major, "node")
-	if executableFile(src) {
-		return copyExecutable(src, dest)
+	for _, backupDir := range []string{actionNodeBackupDir, actionNodeFallbackBackupDir} {
+		src := filepath.Join(backupDir, "node"+major, "node")
+		if executableFile(src) {
+			return copyExecutable(src, dest)
+		}
 	}
-	log.Printf("node%s backup runtime missing at %s; downloading pinned runtime", major, src)
-	return downloadActionNodeRuntime(context.Background(), major, dest)
+	if strings.EqualFold(os.Getenv("GH_RUNNER_ALLOW_NODE_DOWNLOAD"), "true") {
+		log.Printf("node%s backup runtime missing; downloading pinned runtime", major)
+		return downloadActionNodeRuntime(context.Background(), major, dest)
+	}
+	log.Printf("node%s backup runtime missing; set GH_RUNNER_ALLOW_NODE_DOWNLOAD=true to fetch it at startup", major)
+	return fmt.Errorf("node%s backup runtime missing", major)
 }
 
 func downloadActionNodeRuntime(ctx context.Context, major, dest string) error {
@@ -649,8 +656,16 @@ repo="${GITHUB_REPOSITORY##*/}"
 
 for major in 20 24; do
   dest="${runner_home}/externals/node${major}/bin/node"
-  src="/usr/local/share/smoothnas-actions-node/node${major}/node"
-  if [ ! -x "${dest}" ] && [ -x "${src}" ]; then
+  src=""
+  for candidate in \
+    "/usr/local/share/smoothnas-actions-node/node${major}/node" \
+    "/opt/smoothnas/actions-node/node${major}/node"; do
+    if [ -x "${candidate}" ]; then
+      src="${candidate}"
+      break
+    fi
+  done
+  if [ ! -x "${dest}" ] && [ -n "${src}" ]; then
     mkdir -p "$(dirname "${dest}")"
     cp "${src}" "${dest}"
     chmod 755 "${dest}"

@@ -10,6 +10,8 @@ docker run --rm --entrypoint /bin/sh "$image" -c 'test ! -L /home/runner/externa
 docker run --rm --entrypoint /bin/sh "$image" -c 'test ! -L /home/runner/externals/node24/bin/node'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/share/smoothnas-actions-node/node20/node'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/share/smoothnas-actions-node/node24/node'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /opt/smoothnas/actions-node/node20/node'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /opt/smoothnas/actions-node/node24/node'
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -26,14 +28,18 @@ archive = sys.argv[1]
 wanted = {
     "20": {
         "node": "home/runner/externals/node20/bin/node",
+        "backup": "usr/local/share/smoothnas-actions-node/node20/node",
+        "opt_backup": "opt/smoothnas/actions-node/node20/node",
         "whiteout": "home/runner/externals/node20/bin/.wh.node",
     },
     "24": {
         "node": "home/runner/externals/node24/bin/node",
+        "backup": "usr/local/share/smoothnas-actions-node/node24/node",
+        "opt_backup": "opt/smoothnas/actions-node/node24/node",
         "whiteout": "home/runner/externals/node24/bin/.wh.node",
     },
 }
-seen = {major: {"node": False, "node_symlink": False, "whiteout": False} for major in wanted}
+seen = {major: {"node": False, "backup": False, "opt_backup": False, "node_symlink": False, "whiteout": False} for major in wanted}
 
 
 def clean(name):
@@ -56,6 +62,10 @@ def scan_layer(blob):
                     seen[major]["node"] = True
                     if member.issym():
                         seen[major]["node_symlink"] = True
+                if name == paths["backup"]:
+                    seen[major]["backup"] = True
+                if name == paths["opt_backup"]:
+                    seen[major]["opt_backup"] = True
                 if name == paths["whiteout"]:
                     seen[major]["whiteout"] = True
 
@@ -93,6 +103,12 @@ failed = False
 for major, state in seen.items():
     if not state["node"]:
         print(f"node{major}/bin/node is missing from saved image layers", file=sys.stderr)
+        failed = True
+    if not state["backup"]:
+        print(f"node{major} /usr/local/share backup is missing from saved image layers", file=sys.stderr)
+        failed = True
+    if not state["opt_backup"]:
+        print(f"node{major} /opt backup is missing from saved image layers", file=sys.stderr)
         failed = True
     if state["node_symlink"]:
         print(f"node{major}/bin/node must be a real file, not a symlink", file=sys.stderr)

@@ -321,7 +321,8 @@ func TestEnsureRunnerJobHooks(t *testing.T) {
 		t.Fatalf("read hook: %v", err)
 	}
 	for _, want := range []string{
-		"src=\"/usr/local/share/smoothnas-actions-node/node${major}/node\"",
+		"/usr/local/share/smoothnas-actions-node/node${major}/node",
+		"/opt/smoothnas/actions-node/node${major}/node",
 		"for major in 20 24",
 		"_work/${repo}/${repo}",
 	} {
@@ -933,10 +934,15 @@ func TestHostMountSource(t *testing.T) {
 
 func TestEnsureActionNodeRuntimesRestoresMissingFiles(t *testing.T) {
 	oldBackupDir := actionNodeBackupDir
-	t.Cleanup(func() { actionNodeBackupDir = oldBackupDir })
+	oldFallbackBackupDir := actionNodeFallbackBackupDir
+	t.Cleanup(func() {
+		actionNodeBackupDir = oldBackupDir
+		actionNodeFallbackBackupDir = oldFallbackBackupDir
+	})
 
 	root := t.TempDir()
 	actionNodeBackupDir = filepath.Join(root, "backup")
+	actionNodeFallbackBackupDir = filepath.Join(root, "fallback-backup")
 	runnerHome := filepath.Join(root, "runner")
 	for _, major := range []string{"20", "24"} {
 		src := filepath.Join(actionNodeBackupDir, "node"+major, "node")
@@ -966,17 +972,39 @@ func TestEnsureActionNodeRuntimesRestoresMissingFiles(t *testing.T) {
 	}
 }
 
-func TestEnsureActionNodeRuntimesDownloadsWhenBackupMissing(t *testing.T) {
+func TestEnsureActionNodeRuntimesFailsWhenBackupMissing(t *testing.T) {
 	oldBackupDir := actionNodeBackupDir
+	oldFallbackBackupDir := actionNodeFallbackBackupDir
+	t.Cleanup(func() {
+		actionNodeBackupDir = oldBackupDir
+		actionNodeFallbackBackupDir = oldFallbackBackupDir
+	})
+
+	root := t.TempDir()
+	actionNodeBackupDir = filepath.Join(root, "missing-backup")
+	actionNodeFallbackBackupDir = filepath.Join(root, "missing-fallback-backup")
+	runnerHome := filepath.Join(root, "runner")
+
+	if err := ensureActionNodeRuntimes(runnerHome); err == nil {
+		t.Fatal("ensureActionNodeRuntimes succeeded with missing baked backups")
+	}
+}
+
+func TestEnsureActionNodeRuntimesDownloadsWhenExplicitlyEnabled(t *testing.T) {
+	oldBackupDir := actionNodeBackupDir
+	oldFallbackBackupDir := actionNodeFallbackBackupDir
 	oldRunExternalCommand := runExternalCommand
 	t.Cleanup(func() {
 		actionNodeBackupDir = oldBackupDir
+		actionNodeFallbackBackupDir = oldFallbackBackupDir
 		runExternalCommand = oldRunExternalCommand
 	})
 
 	root := t.TempDir()
 	actionNodeBackupDir = filepath.Join(root, "missing-backup")
+	actionNodeFallbackBackupDir = filepath.Join(root, "missing-fallback-backup")
 	runnerHome := filepath.Join(root, "runner")
+	t.Setenv("GH_RUNNER_ALLOW_NODE_DOWNLOAD", "true")
 
 	var commands []string
 	runExternalCommand = func(_ context.Context, dir, name string, args ...string) error {
