@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.45](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.44...v0.3.45) (2026-05-22)
+
+
+### Bug Fixes
+
+* restamp nvcc in final layer ([#103](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/103)) ([9e0eb8b](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/9e0eb8be8a82202d9c3736bc972ca7a7efccc9db))
+
 ## [0.3.44](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.43...v0.3.44) (2026-05-22)
 
 
