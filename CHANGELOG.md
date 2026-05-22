@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.38](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.37...v0.3.38) (2026-05-22)
+
+
+### Bug Fixes
+
+* bake Atomic llama.cpp source into runner image
+
 ## [0.3.37](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.36...v0.3.37) (2026-05-22)
 
 
