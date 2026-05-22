@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.37](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.36...v0.3.37) (2026-05-22)
+
+
+### Bug Fixes
+
+* bake accelerator runner tools ([#88](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/88)) ([18718e1](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/18718e1506644b9d18b03985dc4af17f86603681))
+
 ## [0.3.36](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.35...v0.3.36) (2026-05-22)
 
 
