@@ -12,6 +12,10 @@ docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/share/smoot
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/share/smoothnas-actions-node/node24/node'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /opt/smoothnas/actions-node/node20/node'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /opt/smoothnas/actions-node/node24/node'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /usr/local/share/smoothnas-actions-node/node20/node.part.000'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /usr/local/share/smoothnas-actions-node/node24/node.part.000'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/smoothnas/actions-node/node20/node.part.000'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/smoothnas/actions-node/node24/node.part.000'
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -30,16 +34,20 @@ wanted = {
         "node": "home/runner/externals/node20/bin/node",
         "backup": "usr/local/share/smoothnas-actions-node/node20/node",
         "opt_backup": "opt/smoothnas/actions-node/node20/node",
+        "chunk": "usr/local/share/smoothnas-actions-node/node20/node.part.000",
+        "opt_chunk": "opt/smoothnas/actions-node/node20/node.part.000",
         "whiteout": "home/runner/externals/node20/bin/.wh.node",
     },
     "24": {
         "node": "home/runner/externals/node24/bin/node",
         "backup": "usr/local/share/smoothnas-actions-node/node24/node",
         "opt_backup": "opt/smoothnas/actions-node/node24/node",
+        "chunk": "usr/local/share/smoothnas-actions-node/node24/node.part.000",
+        "opt_chunk": "opt/smoothnas/actions-node/node24/node.part.000",
         "whiteout": "home/runner/externals/node24/bin/.wh.node",
     },
 }
-seen = {major: {"node": False, "backup": False, "opt_backup": False, "node_symlink": False, "whiteout": False} for major in wanted}
+seen = {major: {"node": False, "backup": False, "opt_backup": False, "chunk": False, "opt_chunk": False, "node_symlink": False, "whiteout": False} for major in wanted}
 
 
 def clean(name):
@@ -66,6 +74,10 @@ def scan_layer(blob):
                     seen[major]["backup"] = True
                 if name == paths["opt_backup"]:
                     seen[major]["opt_backup"] = True
+                if name == paths["chunk"]:
+                    seen[major]["chunk"] = True
+                if name == paths["opt_chunk"]:
+                    seen[major]["opt_chunk"] = True
                 if name == paths["whiteout"]:
                     seen[major]["whiteout"] = True
 
@@ -109,6 +121,12 @@ for major, state in seen.items():
         failed = True
     if not state["opt_backup"]:
         print(f"node{major} /opt backup is missing from saved image layers", file=sys.stderr)
+        failed = True
+    if not state["chunk"]:
+        print(f"node{major} /usr/local/share chunked backup is missing from saved image layers", file=sys.stderr)
+        failed = True
+    if not state["opt_chunk"]:
+        print(f"node{major} /opt chunked backup is missing from saved image layers", file=sys.stderr)
         failed = True
     if state["node_symlink"]:
         print(f"node{major}/bin/node must be a real file, not a symlink", file=sys.stderr)
