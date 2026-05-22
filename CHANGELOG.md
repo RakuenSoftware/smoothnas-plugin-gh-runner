@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.40](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.39...v0.3.40) (2026-05-22)
+
+
+### Bug Fixes
+
+* preserve cxx frontend in runner image ([7b4f302](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/7b4f302767d0b61fa0f1bab4b96c7495bf371482))
+
 ## [0.3.39](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.38...v0.3.39) (2026-05-22)
 
 
