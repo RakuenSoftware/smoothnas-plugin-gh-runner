@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.49](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.48...v0.3.49) (2026-05-22)
+
+
+### Bug Fixes
+
+* restore baked toolchain files from chunks ([#111](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/111)) ([28ac853](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/28ac85331daae305fcbc9ae114762025b3304946))
+
 ## [0.3.48](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.47...v0.3.48) (2026-05-22)
 
 
