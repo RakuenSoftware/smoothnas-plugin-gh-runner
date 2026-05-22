@@ -42,7 +42,7 @@ ARG TARGETARCH=amd64
 ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
-ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
+ENV PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
 # GitHub + runtime API calls; git/ca-certs/tar/sudo because the runner expects
