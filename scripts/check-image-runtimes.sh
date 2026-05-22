@@ -18,10 +18,13 @@ docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/smoothnas/actions
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/smoothnas/actions-node/node24/node.part.000'
 docker run --rm --entrypoint /bin/sh "$image" -c 'go version'
 docker run --rm --entrypoint /bin/sh "$image" -c 'crane version'
+docker run --rm --entrypoint /bin/sh "$image" -c 'docker --version'
 docker run --rm --entrypoint /bin/sh "$image" -c '/usr/local/cuda/bin/nvcc --version'
 docker run --rm --entrypoint /bin/sh "$image" -c 'glslc --version'
 docker run --rm --entrypoint /bin/sh "$image" -c 'cmake --version'
 docker run --rm --entrypoint /bin/sh "$image" -c 'g++-14 --version'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/atomic-llama-cpp-turboquant/CMakeLists.txt'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test "$(cat /opt/atomic-llama-cpp-turboquant/.smoothnas-llama-ref)" = 24cabf4d08d460cfb6e73fa308a15b34e2b04600'
 docker run --rm --entrypoint /bin/sh "$image" -c 'dpkg-query -W gcc-14 g++-14 cmake cuda-nvcc-12-8 cuda-cudart-dev-12-8 libvulkan-dev glslc'
 
 tmp="$(mktemp -d)"

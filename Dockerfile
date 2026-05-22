@@ -20,6 +20,8 @@ FROM golang:1.25-bookworm AS go-runtime
 FROM golang:1.25-alpine AS tools-build
 RUN go install github.com/google/go-containerregistry/cmd/crane@v0.20.6
 
+FROM docker:28-cli AS docker-cli
+
 # --- final image ---
 FROM debian:13-slim
 
@@ -105,7 +107,8 @@ RUN set -eux; \
 
 COPY --from=go-runtime /usr/local/go /usr/local/go
 COPY --from=tools-build /go/bin/crane /usr/local/bin/crane
-RUN go version && crane version
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+RUN go version && crane version && docker --version
 
 # Bake the Atomic llama.cpp TurboQuant/MTP source used by the llama-cpp
 # plugin release workflow. Worker jobs build from this local tree instead of
