@@ -47,6 +47,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 ENV PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV COMPILER_PATH=/usr/local/lib/gcc/x86_64-linux-gnu/14:/usr/libexec/gcc/x86_64-linux-gnu/14
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
 # GitHub + runtime API calls; git/ca-certs/tar/sudo because the runner expects
@@ -103,6 +104,12 @@ RUN set -eux; \
     /usr/local/cuda/bin/nvcc --version; \
     glslc --version; \
     cmake --version; \
+    cc1plus_path="$(dpkg -L g++-14-x86-64-linux-gnu | grep '/cc1plus$' | head -n1)"; \
+    test -x "$cc1plus_path"; \
+    install -D -m 0755 "$cc1plus_path" /usr/local/lib/gcc/x86_64-linux-gnu/14/cc1plus; \
+    printf 'int main() { return 0; }\n' > /tmp/cxx-sanity.cpp; \
+    g++-14 /tmp/cxx-sanity.cpp -o /tmp/cxx-sanity; \
+    rm -f /tmp/cxx-sanity.cpp /tmp/cxx-sanity; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=go-runtime /usr/local/go /usr/local/go

@@ -23,6 +23,7 @@ docker run --rm --entrypoint /bin/sh "$image" -c '/usr/local/cuda/bin/nvcc --ver
 docker run --rm --entrypoint /bin/sh "$image" -c 'glslc --version'
 docker run --rm --entrypoint /bin/sh "$image" -c 'cmake --version'
 docker run --rm --entrypoint /bin/sh "$image" -c 'g++-14 --version'
+docker run --rm --entrypoint /bin/sh "$image" -c 'echo "int main() { return 0; }" >/tmp/cxx-sanity.cpp && g++-14 /tmp/cxx-sanity.cpp -o /tmp/cxx-sanity'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/atomic-llama-cpp-turboquant/CMakeLists.txt'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test "$(cat /opt/atomic-llama-cpp-turboquant/.smoothnas-llama-ref)" = 24cabf4d08d460cfb6e73fa308a15b34e2b04600'
 docker run --rm --entrypoint /bin/sh "$image" -c 'dpkg-query -W gcc-14 g++-14 cmake cuda-nvcc-12-8 cuda-cudart-dev-12-8 libvulkan-dev glslc'
