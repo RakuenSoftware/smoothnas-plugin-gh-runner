@@ -86,6 +86,8 @@ RUN set -eux; \
         cuda-nvvm-12-8 \
         cuda-cudart-dev-12-8 \
         cuda-driver-dev-12-8 \
+        libcublas-12-8 \
+        libcublas-dev-12-8 \
         glslc \
         libegl1 \
         libgl1 \
@@ -257,6 +259,7 @@ RUN set -eux; \
     cc1plus_path="$(dpkg -L g++-14-x86-64-linux-gnu | grep '/cc1plus$' | head -n1)"; \
     cicc_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/bin/cicc$' | head -n1)"; \
     libdevice_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/libdevice/libdevice.10.bc$' | head -n1)"; \
+    cublas_lib_dir=/usr/local/cuda/targets/x86_64-linux/lib; \
     test -x "$nvcc_path"; \
     test -x "$ptxas_path"; \
     test -x "$nvlink_path"; \
@@ -278,12 +281,20 @@ RUN set -eux; \
     install -m 0755 "$cicc_path" /usr/local/bin/cicc; \
     mkdir -p /usr/local/share/cuda-nvvm/libdevice; \
     install -m 0644 "$libdevice_path" /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc; \
+    for lib in libcublas.so libcublasLt.so; do \
+      test -e "$cublas_lib_dir/$lib"; \
+      cp -L "$cublas_lib_dir/$lib" "/tmp/smoothnas-$lib"; \
+      install -m 0644 "/tmp/smoothnas-$lib" "$cublas_lib_dir/$lib"; \
+      rm -f "/tmp/smoothnas-$lib"; \
+    done; \
     test -x /usr/local/cuda/bin/nvcc; \
     test -x /usr/local/cuda/bin/ptxas; \
     test -x /usr/local/cuda/bin/nvlink; \
     test -x /usr/local/bin/cc1; \
     test -x /usr/local/bin/cc1plus; \
     test -x /usr/local/bin/cicc; \
+    test -f /usr/local/cuda/targets/x86_64-linux/lib/libcublas.so; \
+    test -f /usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so; \
     test -f /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc
 
 # SmoothNAS creates plugin bind-mount directories as root. Run the
