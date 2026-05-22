@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.42](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.41...v0.3.42) (2026-05-22)
+
+
+### Bug Fixes
+
+* preserve compiler frontends in bin ([#97](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/97)) ([b350ba1](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/b350ba1dec22c0be69626cb6f8faefaafa3745f7))
+
 ## [0.3.41](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.40...v0.3.41) (2026-05-22)
 
 
