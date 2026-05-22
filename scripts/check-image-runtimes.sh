@@ -16,6 +16,13 @@ docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /usr/local/share/smoot
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /usr/local/share/smoothnas-actions-node/node24/node.part.000'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/smoothnas/actions-node/node20/node.part.000'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/smoothnas/actions-node/node24/node.part.000'
+docker run --rm --entrypoint /bin/sh "$image" -c 'go version'
+docker run --rm --entrypoint /bin/sh "$image" -c 'crane version'
+docker run --rm --entrypoint /bin/sh "$image" -c '/usr/local/cuda/bin/nvcc --version'
+docker run --rm --entrypoint /bin/sh "$image" -c 'glslc --version'
+docker run --rm --entrypoint /bin/sh "$image" -c 'cmake --version'
+docker run --rm --entrypoint /bin/sh "$image" -c 'g++-14 --version'
+docker run --rm --entrypoint /bin/sh "$image" -c 'dpkg-query -W gcc-14 g++-14 cmake cuda-nvcc-12-8 cuda-cudart-dev-12-8 libvulkan-dev glslc'
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
