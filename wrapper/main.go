@@ -68,6 +68,7 @@ const (
 var resolvConfPath = "/etc/resolv.conf"
 var actionNodeBackupDir = "/usr/local/share/smoothnas-actions-node"
 var actionNodeFallbackBackupDir = "/opt/smoothnas/actions-node"
+var toolchainBackupDir = "/usr/local/share/smoothnas-toolchain"
 var runExternalCommand = runCommand
 
 type nodeRuntimeSpec struct {
@@ -121,6 +122,9 @@ func main() {
 	}
 	if err := stabilizeContainerDNS(cfg.dnsServers); err != nil {
 		log.Printf("stabilize container dns: %v", err)
+	}
+	if err := ensureBakedToolchainFiles(); err != nil {
+		log.Printf("restore baked toolchain files: %v", err)
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -306,7 +310,56 @@ func restoreActionNodeRuntime(major, dest string) error {
 }
 
 func restoreActionNodeRuntimeFromChunks(dir, dest string) error {
-	chunks, err := filepath.Glob(filepath.Join(dir, "node.part.*"))
+	return restoreFileFromChunks(filepath.Join(dir, "node.part.*"), dest, 0o755)
+}
+
+type bakedToolchainFile struct {
+	name string
+	dest string
+	mode os.FileMode
+}
+
+var bakedToolchainFiles = []bakedToolchainFile{
+	{name: "nvcc", dest: "/usr/local/cuda/bin/nvcc", mode: 0o755},
+	{name: "ptxas", dest: "/usr/local/cuda/bin/ptxas", mode: 0o755},
+	{name: "nvlink", dest: "/usr/local/cuda/bin/nvlink", mode: 0o755},
+	{name: "cc1", dest: "/usr/local/bin/cc1", mode: 0o755},
+	{name: "cc1plus", dest: "/usr/local/bin/cc1plus", mode: 0o755},
+	{name: "cicc", dest: "/usr/local/bin/cicc", mode: 0o755},
+	{name: "libdevice.10.bc", dest: "/usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc", mode: 0o644},
+	{name: "libcublas.so", dest: "/usr/local/cuda/targets/x86_64-linux/lib/libcublas.so", mode: 0o644},
+	{name: "libcublasLt.so", dest: "/usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so", mode: 0o644},
+}
+
+func ensureBakedToolchainFiles() error {
+	var errs []error
+	for _, spec := range bakedToolchainFiles {
+		if fileWithMode(spec.dest, spec.mode) {
+			continue
+		}
+		pattern := filepath.Join(toolchainBackupDir, spec.name, spec.name+".part.*")
+		if err := restoreFileFromChunks(pattern, spec.dest, spec.mode); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", spec.dest, err))
+			continue
+		}
+		log.Printf("restored baked toolchain file %s", spec.dest)
+	}
+	return errors.Join(errs...)
+}
+
+func fileWithMode(path string, mode os.FileMode) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	if mode&0o111 != 0 {
+		return info.Mode()&0o111 != 0
+	}
+	return true
+}
+
+func restoreFileFromChunks(pattern, dest string, mode os.FileMode) error {
+	chunks, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
 	}
@@ -347,7 +400,7 @@ func restoreActionNodeRuntimeFromChunks(dir, dest string) error {
 		_ = os.Remove(tmp)
 		return closeErr
 	}
-	if err := os.Chmod(tmp, 0o755); err != nil {
+	if err := os.Chmod(tmp, mode); err != nil {
 		_ = os.Remove(tmp)
 		return err
 	}

@@ -260,6 +260,7 @@ RUN set -eux; \
     cicc_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/bin/cicc$' | head -n1)"; \
     libdevice_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/libdevice/libdevice.10.bc$' | head -n1)"; \
     cublas_lib_dir=/usr/local/cuda/targets/x86_64-linux/lib; \
+    toolchain_backup_dir=/usr/local/share/smoothnas-toolchain; \
     test -x "$nvcc_path"; \
     test -x "$ptxas_path"; \
     test -x "$nvlink_path"; \
@@ -287,6 +288,26 @@ RUN set -eux; \
       install -m 0644 "/tmp/smoothnas-$lib" "$cublas_lib_dir/$lib"; \
       rm -f "/tmp/smoothnas-$lib"; \
     done; \
+    backup_toolchain_file() { \
+      name="$1"; \
+      src="$2"; \
+      mode="$3"; \
+      dest="$toolchain_backup_dir/$name"; \
+      mkdir -p "$dest"; \
+      cp -L "$src" "$dest/$name"; \
+      chmod "$mode" "$dest/$name"; \
+      split -b 8m -d -a 3 "$dest/$name" "$dest/$name.part."; \
+      chmod 0644 "$dest/$name.part."*; \
+    }; \
+    backup_toolchain_file nvcc /usr/local/cuda/bin/nvcc 0755; \
+    backup_toolchain_file ptxas /usr/local/cuda/bin/ptxas 0755; \
+    backup_toolchain_file nvlink /usr/local/cuda/bin/nvlink 0755; \
+    backup_toolchain_file cc1 /usr/local/bin/cc1 0755; \
+    backup_toolchain_file cc1plus /usr/local/bin/cc1plus 0755; \
+    backup_toolchain_file cicc /usr/local/bin/cicc 0755; \
+    backup_toolchain_file libdevice.10.bc /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc 0644; \
+    backup_toolchain_file libcublas.so /usr/local/cuda/targets/x86_64-linux/lib/libcublas.so 0644; \
+    backup_toolchain_file libcublasLt.so /usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so 0644; \
     test -x /usr/local/cuda/bin/nvcc; \
     test -x /usr/local/cuda/bin/ptxas; \
     test -x /usr/local/cuda/bin/nvlink; \
@@ -295,7 +316,10 @@ RUN set -eux; \
     test -x /usr/local/bin/cicc; \
     test -f /usr/local/cuda/targets/x86_64-linux/lib/libcublas.so; \
     test -f /usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so; \
-    test -f /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc
+    test -f /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc; \
+    test -f /usr/local/share/smoothnas-toolchain/cc1/cc1.part.000; \
+    test -f /usr/local/share/smoothnas-toolchain/cicc/cicc.part.000; \
+    test -f /usr/local/share/smoothnas-toolchain/libcublas.so/libcublas.so.part.000
 
 # SmoothNAS creates plugin bind-mount directories as root. Run the
 # wrapper as root so the controller workspace and optional worker
