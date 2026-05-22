@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.46](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.45...v0.3.46) (2026-05-22)
+
+
+### Bug Fixes
+
+* restamp cuda codegen tools in final layer ([#105](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/105)) ([b41a491](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/b41a491271b4583c47e696485e09a2824508c4cf))
+
 ## [0.3.45](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.44...v0.3.45) (2026-05-22)
 
 
