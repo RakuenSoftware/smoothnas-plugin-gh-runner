@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.47](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.46...v0.3.47) (2026-05-22)
+
+
+### Bug Fixes
+
+* pass toolchain env to workers ([#107](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/107)) ([3dbb353](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/3dbb353a082b75c64de35abe20f830c79fa8eebd))
+
 ## [0.3.46](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.45...v0.3.46) (2026-05-22)
 
 
