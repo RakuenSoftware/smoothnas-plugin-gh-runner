@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.52](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.51...v0.3.52) (2026-05-22)
+
+
+### Bug Fixes
+
+* restore complete worker toolchain from image ([#117](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/117)) ([2159093](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/21590939138ce7d16ebb706d91db7b7d577beaf3))
+
 ## [0.3.51](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.50...v0.3.51) (2026-05-22)
 
 
