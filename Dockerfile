@@ -105,6 +105,7 @@ RUN set -eux; \
     glslc --version; \
     cmake --version; \
     cuda_math=/usr/local/cuda/targets/x86_64-linux/include/crt/math_functions.h; \
+    cuda_profile=/usr/local/cuda/bin/nvcc.profile; \
     sed -i -E \
       -e 's/(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double[[:space:]]+rsqrt\(double x\));/\1 noexcept (true);/' \
       -e 's/(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float[[:space:]]+rsqrtf\(float x\));/\1 noexcept (true);/' \
@@ -119,6 +120,17 @@ RUN set -eux; \
       -e 's/__func__\(double cospi\(double a\)\);/__func__(double cospi(double a) noexcept (true));/' \
       -e 's/__func__\(float cospif\(float a\)\);/__func__(float cospif(float a) noexcept (true));/' \
       "$cuda_math"; \
+    cicc_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/bin/cicc$' | head -n1)"; \
+    libdevice_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/libdevice/libdevice.10.bc$' | head -n1)"; \
+    test -x "$cicc_path"; \
+    test -f "$libdevice_path"; \
+    install -m 0755 "$cicc_path" /usr/local/bin/cicc; \
+    mkdir -p /usr/local/share/cuda-nvvm/libdevice; \
+    install -m 0644 "$libdevice_path" /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc; \
+    sed -i -E \
+      -e 's#^CICC_PATH[[:space:]]*=.*#CICC_PATH        = /usr/local/bin#' \
+      -e 's#^NVVMIR_LIBRARY_DIR[[:space:]]*=.*#NVVMIR_LIBRARY_DIR = /usr/local/share/cuda-nvvm/libdevice#' \
+      "$cuda_profile"; \
     cc1_path="$(dpkg -L cpp-14-x86-64-linux-gnu gcc-14-x86-64-linux-gnu | grep '/cc1$' | head -n1)"; \
     cc1plus_path="$(dpkg -L g++-14-x86-64-linux-gnu | grep '/cc1plus$' | head -n1)"; \
     test -x "$cc1_path"; \
