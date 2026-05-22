@@ -24,6 +24,8 @@ docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/cuda/bin/nv
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/cuda/bin/ptxas'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/cuda/bin/nvlink'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/bin/cicc'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /usr/local/cuda/targets/x86_64-linux/lib/libcublas.so'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc'
 docker run --rm --entrypoint /bin/sh "$image" -c 'grep -q "^CICC_PATH[[:space:]]*= /usr/local/bin$" /usr/local/cuda/bin/nvcc.profile'
 docker run --rm --entrypoint /bin/sh "$image" -c 'grep -q "^NVVMIR_LIBRARY_DIR[[:space:]]*= /usr/local/share/cuda-nvvm/libdevice$" /usr/local/cuda/bin/nvcc.profile'
@@ -36,20 +38,15 @@ docker run --rm --entrypoint /bin/sh "$image" -c 'echo "int main() { return 0; }
 docker run --rm --entrypoint /bin/sh "$image" -c 'echo "int main() { return 0; }" >/tmp/cxx-sanity.cpp && g++-14 /tmp/cxx-sanity.cpp -o /tmp/cxx-sanity'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/atomic-llama-cpp-turboquant/CMakeLists.txt'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test "$(cat /opt/atomic-llama-cpp-turboquant/.smoothnas-llama-ref)" = 24cabf4d08d460cfb6e73fa308a15b34e2b04600'
-docker run --rm --entrypoint /bin/sh "$image" -c 'dpkg-query -W gcc-14 g++-14 cmake cuda-nvcc-12-8 cuda-cudart-dev-12-8 libvulkan-dev glslc'
+docker run --rm --entrypoint /bin/sh "$image" -c 'dpkg-query -W gcc-14 g++-14 cmake cuda-nvcc-12-8 cuda-cudart-dev-12-8 libcublas-dev-12-8 libvulkan-dev glslc'
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-docker save "$image" -o "$tmp/image.tar"
-python3 - "$tmp/image.tar" <<'PY'
-import gzip
-import io
-import json
+cat > "$tmp/scan-image-layers.py" <<'PY'
 import sys
 import tarfile
 
-archive = sys.argv[1]
 wanted = {
     "20": {
         "node": "home/runner/externals/node20/bin/node",
@@ -75,14 +72,17 @@ def clean(name):
     return name.lstrip("./")
 
 
-def scan_layer(blob):
+def drain(fileobj):
+    while fileobj.read(1024 * 1024):
+        pass
+
+
+def scan_layer_file(fileobj):
     try:
-        layer = tarfile.open(fileobj=io.BytesIO(blob), mode="r:*")
+        layer = tarfile.open(fileobj=fileobj, mode="r|*")
     except tarfile.ReadError:
-        try:
-            layer = tarfile.open(fileobj=io.BytesIO(gzip.decompress(blob)), mode="r:")
-        except (OSError, tarfile.ReadError):
-            return
+        drain(fileobj)
+        return
     with layer:
         for member in layer:
             name = clean(member.name)
@@ -101,36 +101,18 @@ def scan_layer(blob):
                     seen[major]["opt_chunk"] = True
                 if name == paths["whiteout"]:
                     seen[major]["whiteout"] = True
+    drain(fileobj)
 
 
-with tarfile.open(archive, mode="r") as image:
-    names = set(image.getnames())
-    layer_names = [name for name in names if name.endswith("/layer.tar")]
-
-    if "manifest.json" in names:
-        manifest = json.load(image.extractfile("manifest.json"))
-        for item in manifest:
-            for name in item.get("Layers", []):
-                if name in names:
-                    scan_layer(image.extractfile(name).read())
-    elif "index.json" in names:
-        index = json.load(image.extractfile("index.json"))
-        for item in index.get("manifests", []):
-            digest = item.get("digest", "")
-            algo, _, value = digest.partition(":")
-            manifest_name = f"blobs/{algo}/{value}"
-            if not value or manifest_name not in names:
-                continue
-            manifest = json.load(image.extractfile(manifest_name))
-            for layer in manifest.get("layers", []):
-                digest = layer.get("digest", "")
-                algo, _, value = digest.partition(":")
-                layer_name = f"blobs/{algo}/{value}"
-                if value and layer_name in names:
-                    scan_layer(image.extractfile(layer_name).read())
-    else:
-        for name in layer_names:
-            scan_layer(image.extractfile(name).read())
+with tarfile.open(fileobj=sys.stdin.buffer, mode="r|*") as image:
+    for member in image:
+        name = clean(member.name)
+        if not name.endswith("/layer.tar") and not name.startswith("blobs/"):
+            continue
+        extracted = image.extractfile(member)
+        if extracted is None:
+            continue
+        scan_layer_file(extracted)
 
 failed = False
 for major, state in seen.items():
@@ -159,3 +141,5 @@ for major, state in seen.items():
 if failed:
     sys.exit(1)
 PY
+
+docker save "$image" | python3 "$tmp/scan-image-layers.py"

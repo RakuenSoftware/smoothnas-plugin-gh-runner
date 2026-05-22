@@ -977,65 +977,10 @@ func shrinkExcessIdleWorkers(ctx context.Context, dc *dockerClient, cfg config, 
 }
 
 func excessIdleWorkers(workers []containerSummary, runners []githubRunner, target int) []containerSummary {
-	running := 0
-	for _, w := range workers {
-		if w.State == "running" {
-			running++
-		}
-	}
-	if running <= target {
-		return nil
-	}
-	excess := running - target
-	var out []containerSummary
-	for _, w := range workers {
-		if len(out) >= excess {
-			break
-		}
-		if w.State != "running" {
-			continue
-		}
-		runner, ok := githubRunnerForWorker(runners, w.ID)
-		if !ok || runner.Busy {
-			continue
-		}
-		out = append(out, w)
-	}
-	return out
+	return nil
 }
 
 func removeMismatchedIdleWorkers(ctx context.Context, dc *dockerClient, cfg config, image string, runners []githubRunner) error {
-	workers, err := dc.listWorkers(ctx)
-	if err != nil {
-		return err
-	}
-	for _, w := range workers {
-		if w.State != "running" {
-			continue
-		}
-		runner, ok := githubRunnerForWorker(runners, w.ID)
-		if !ok || runner.Busy {
-			continue
-		}
-		inspect, err := dc.inspectContainer(ctx, w.ID)
-		if err != nil {
-			log.Printf("inspect worker %s for resource drift: %v", containerName(w), err)
-			continue
-		}
-		if workerSpecMatches(inspect, cfg, image) {
-			continue
-		}
-		name := containerName(w)
-		log.Printf("replacing idle worker %s with stale worker spec", name)
-		if err := dc.stopContainer(ctx, w.ID, 60); err != nil {
-			log.Printf("stop resource-mismatched worker %s: %v", name, err)
-		}
-		if err := dc.removeContainer(ctx, w.ID, true); err != nil {
-			log.Printf("remove resource-mismatched worker %s: %v", name, err)
-			continue
-		}
-		removeWorkerHostWorkspace(cfg, name)
-	}
 	return nil
 }
 
@@ -1164,10 +1109,11 @@ func removeStaleLocalWorkers(ctx context.Context, dc *dockerClient, cfg config, 
 		if !staleRunnerMatchesWorker(stale, w.ID) {
 			continue
 		}
-		log.Printf("removing local worker %s for stale github runner", name)
 		if w.State == "running" {
-			_ = dc.stopContainer(ctx, w.ID, 30)
+			log.Printf("leaving running local worker %s for stale github runner cleanup", name)
+			continue
 		}
+		log.Printf("removing local worker %s for stale github runner", name)
 		if err := dc.removeContainer(ctx, w.ID, true); err != nil {
 			log.Printf("remove stale local worker %s: %v", name, err)
 			continue
@@ -1201,9 +1147,7 @@ func removeOrphanedLocalWorkers(ctx context.Context, dc *dockerClient, cfg confi
 }
 
 func orphanedLocalWorker(w containerSummary, runners []githubRunner, now time.Time) bool {
-	return w.State == "running" &&
-		!workerHasGitHubRunner(runners, w.ID) &&
-		workerRegistrationGraceExpired(w, now)
+	return false
 }
 
 func staleRunnerMatchesWorker(stale []githubRunner, workerID string) bool {

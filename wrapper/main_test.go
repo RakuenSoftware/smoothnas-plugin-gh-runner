@@ -551,15 +551,8 @@ func TestExcessIdleWorkers(t *testing.T) {
 		{Name: "smoothnas-444444444444-1779287004", Status: "online", Busy: false},
 	}
 
-	got := excessIdleWorkers(workers, runners, 2)
-	wantIDs := []string{ids[1], ids[2]}
-	if len(got) != len(wantIDs) {
-		t.Fatalf("len(excessIdleWorkers) = %d, want %d: %#v", len(got), len(wantIDs), got)
-	}
-	for i, want := range wantIDs {
-		if got[i].ID != want {
-			t.Fatalf("worker %d ID = %q, want %q", i, got[i].ID, want)
-		}
+	if got := excessIdleWorkers(workers, runners, 2); len(got) != 0 {
+		t.Fatalf("excessIdleWorkers removed running workers: %#v", got)
 	}
 }
 
@@ -664,7 +657,7 @@ func TestOrphanedLocalWorker(t *testing.T) {
 				State:   "running",
 				Created: now.Add(-registrationGrace).Unix(),
 			},
-			want: true,
+			want: false,
 		},
 		{
 			name: "running worker inside registration grace",
