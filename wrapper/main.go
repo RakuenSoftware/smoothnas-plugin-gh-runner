@@ -293,6 +293,9 @@ func restoreActionNodeRuntime(major, dest string) error {
 		if executableFile(src) {
 			return copyExecutable(src, dest)
 		}
+		if err := restoreActionNodeRuntimeFromChunks(filepath.Join(backupDir, "node"+major), dest); err == nil {
+			return nil
+		}
 	}
 	if strings.EqualFold(os.Getenv("GH_RUNNER_ALLOW_NODE_DOWNLOAD"), "true") {
 		log.Printf("node%s backup runtime missing; downloading pinned runtime", major)
@@ -300,6 +303,56 @@ func restoreActionNodeRuntime(major, dest string) error {
 	}
 	log.Printf("node%s backup runtime missing; set GH_RUNNER_ALLOW_NODE_DOWNLOAD=true to fetch it at startup", major)
 	return fmt.Errorf("node%s backup runtime missing", major)
+}
+
+func restoreActionNodeRuntimeFromChunks(dir, dest string) error {
+	chunks, err := filepath.Glob(filepath.Join(dir, "node.part.*"))
+	if err != nil {
+		return err
+	}
+	if len(chunks) == 0 {
+		return os.ErrNotExist
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	tmp := dest + ".tmp"
+	_ = os.Remove(tmp)
+	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o755)
+	if err != nil {
+		return err
+	}
+	for _, chunk := range chunks {
+		in, err := os.Open(chunk)
+		if err != nil {
+			_ = out.Close()
+			_ = os.Remove(tmp)
+			return err
+		}
+		_, copyErr := io.Copy(out, in)
+		closeErr := in.Close()
+		if copyErr != nil {
+			_ = out.Close()
+			_ = os.Remove(tmp)
+			return copyErr
+		}
+		if closeErr != nil {
+			_ = out.Close()
+			_ = os.Remove(tmp)
+			return closeErr
+		}
+	}
+	closeErr := out.Close()
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return closeErr
+	}
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	_ = os.Remove(dest)
+	return os.Rename(tmp, dest)
 }
 
 func downloadActionNodeRuntime(ctx context.Context, major, dest string) error {
@@ -669,6 +722,20 @@ for major in 20 24; do
     mkdir -p "$(dirname "${dest}")"
     cp "${src}" "${dest}"
     chmod 755 "${dest}"
+  fi
+  if [ ! -x "${dest}" ]; then
+    for chunk_dir in \
+      "/usr/local/share/smoothnas-actions-node/node${major}" \
+      "/opt/smoothnas/actions-node/node${major}"; do
+      set -- "${chunk_dir}"/node.part.*
+      if [ -f "$1" ]; then
+        mkdir -p "$(dirname "${dest}")"
+        cat "$@" > "${dest}.tmp"
+        chmod 755 "${dest}.tmp"
+        mv "${dest}.tmp" "${dest}"
+        break
+      fi
+    done
   fi
 done
 

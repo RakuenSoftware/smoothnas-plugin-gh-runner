@@ -127,6 +127,15 @@ RUN /home/runner/bin/installdependencies.sh \
       install -D -m 0755 \
         "/home/runner/externals/node${major}/bin/node" \
         "/opt/smoothnas/actions-node/node${major}/node"; \
+      split -b 8m -d -a 3 \
+        "/home/runner/externals/node${major}/bin/node" \
+        "/usr/local/share/smoothnas-actions-node/node${major}/node.part."; \
+      split -b 8m -d -a 3 \
+        "/home/runner/externals/node${major}/bin/node" \
+        "/opt/smoothnas/actions-node/node${major}/node.part."; \
+      chmod 0644 \
+        /usr/local/share/smoothnas-actions-node/node${major}/node.part.* \
+        /opt/smoothnas/actions-node/node${major}/node.part.*; \
       "/home/runner/externals/node${major}/bin/node" --version; \
     done \
  && rm -rf /var/lib/apt/lists/*

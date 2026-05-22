@@ -323,6 +323,7 @@ func TestEnsureRunnerJobHooks(t *testing.T) {
 	for _, want := range []string{
 		"/usr/local/share/smoothnas-actions-node/node${major}/node",
 		"/opt/smoothnas/actions-node/node${major}/node",
+		"node.part.*",
 		"for major in 20 24",
 		"_work/${repo}/${repo}",
 	} {
@@ -950,6 +951,49 @@ func TestEnsureActionNodeRuntimesRestoresMissingFiles(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(src, []byte("node"+major), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := ensureActionNodeRuntimes(runnerHome); err != nil {
+		t.Fatalf("ensureActionNodeRuntimes: %v", err)
+	}
+	for _, major := range []string{"20", "24"} {
+		dest := filepath.Join(runnerHome, "externals", "node"+major, "bin", "node")
+		got, err := os.ReadFile(dest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != "node"+major {
+			t.Fatalf("node%s content = %q", major, got)
+		}
+		if !executableFile(dest) {
+			t.Fatalf("node%s was not executable", major)
+		}
+	}
+}
+
+func TestEnsureActionNodeRuntimesRestoresChunkedBackups(t *testing.T) {
+	oldBackupDir := actionNodeBackupDir
+	oldFallbackBackupDir := actionNodeFallbackBackupDir
+	t.Cleanup(func() {
+		actionNodeBackupDir = oldBackupDir
+		actionNodeFallbackBackupDir = oldFallbackBackupDir
+	})
+
+	root := t.TempDir()
+	actionNodeBackupDir = filepath.Join(root, "backup")
+	actionNodeFallbackBackupDir = filepath.Join(root, "fallback-backup")
+	runnerHome := filepath.Join(root, "runner")
+	for _, major := range []string{"20", "24"} {
+		dir := filepath.Join(actionNodeBackupDir, "node"+major)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "node.part.000"), []byte("node"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "node.part.001"), []byte(major), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
