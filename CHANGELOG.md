@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.48](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.47...v0.3.48) (2026-05-22)
+
+
+### Bug Fixes
+
+* bake cublas and preserve active workers ([#109](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/109)) ([9197876](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/919787680b6e925c1fd614b1a7e278f6e82fed71))
+
 ## [0.3.47](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.46...v0.3.47) (2026-05-22)
 
 
