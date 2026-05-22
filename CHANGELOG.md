@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.44](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.43...v0.3.44) (2026-05-22)
+
+
+### Bug Fixes
+
+* restamp toolchain helpers in final layer ([#101](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/101)) ([916a92f](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/916a92ff083c706cf031cbba7538147bb3038823))
+
 ## [0.3.43](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.42...v0.3.43) (2026-05-22)
 
 
