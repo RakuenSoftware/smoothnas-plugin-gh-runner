@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.50](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.49...v0.3.50) (2026-05-22)
+
+
+### Bug Fixes
+
+* bake qwen nextn turboquant llama source ([9cc2586](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/9cc258631cdf1f724bdbaf47eaab06a15b87034f))
+
 ## [0.3.49](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.48...v0.3.49) (2026-05-22)
 
 
