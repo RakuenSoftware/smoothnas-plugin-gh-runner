@@ -29,7 +29,9 @@
 package main
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -68,6 +70,8 @@ const (
 var resolvConfPath = "/etc/resolv.conf"
 var actionNodeBackupDir = "/usr/local/share/smoothnas-actions-node"
 var actionNodeFallbackBackupDir = "/opt/smoothnas/actions-node"
+var goRoot = "/usr/local/go"
+var goToolchainBackupDir = "/usr/local/share/smoothnas-go-toolchain"
 var toolchainBackupDir = "/usr/local/share/smoothnas-toolchain"
 var runExternalCommand = runCommand
 
@@ -122,6 +126,9 @@ func main() {
 	}
 	if err := stabilizeContainerDNS(cfg.dnsServers); err != nil {
 		log.Printf("stabilize container dns: %v", err)
+	}
+	if err := ensureBakedGoToolchain(); err != nil {
+		log.Printf("restore baked go toolchain: %v", err)
 	}
 	if err := ensureBakedToolchainFiles(); err != nil {
 		log.Printf("restore baked toolchain files: %v", err)
@@ -321,6 +328,8 @@ type bakedToolchainFile struct {
 
 var bakedToolchainFiles = []bakedToolchainFile{
 	{name: "go", dest: "/usr/local/go/bin/go", mode: 0o755},
+	{name: "crane", dest: "/usr/local/bin/crane", mode: 0o755},
+	{name: "docker", dest: "/usr/local/bin/docker", mode: 0o755},
 	{name: "nvcc", dest: "/usr/local/cuda/bin/nvcc", mode: 0o755},
 	{name: "ptxas", dest: "/usr/local/cuda/bin/ptxas", mode: 0o755},
 	{name: "nvlink", dest: "/usr/local/cuda/bin/nvlink", mode: 0o755},
@@ -330,6 +339,28 @@ var bakedToolchainFiles = []bakedToolchainFile{
 	{name: "libdevice.10.bc", dest: "/usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc", mode: 0o644},
 	{name: "libcublas.so", dest: "/usr/local/cuda/targets/x86_64-linux/lib/libcublas.so", mode: 0o644},
 	{name: "libcublasLt.so", dest: "/usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so", mode: 0o644},
+}
+
+func ensureBakedGoToolchain() error {
+	if goToolchainUsable() {
+		return nil
+	}
+	if err := os.RemoveAll(goRoot); err != nil {
+		return err
+	}
+	pattern := filepath.Join(goToolchainBackupDir, "go.tar.gz.part.*")
+	if err := restoreTarGzFromChunks(pattern, filepath.Dir(goRoot)); err != nil {
+		return err
+	}
+	log.Printf("restored baked go toolchain %s", goRoot)
+	return nil
+}
+
+func goToolchainUsable() bool {
+	toolDir := filepath.Join(goRoot, "pkg", "tool", runtime.GOOS+"_"+runtime.GOARCH)
+	return fileWithMode(filepath.Join(goRoot, "bin", "go"), 0o755) &&
+		fileWithMode(filepath.Join(goRoot, "bin", "gofmt"), 0o755) &&
+		fileWithMode(filepath.Join(toolDir, "compile"), 0o755)
 }
 
 func ensureBakedToolchainFiles() error {
@@ -346,6 +377,117 @@ func ensureBakedToolchainFiles() error {
 		log.Printf("restored baked toolchain file %s", spec.dest)
 	}
 	return errors.Join(errs...)
+}
+
+func restoreTarGzFromChunks(pattern, destDir string) error {
+	chunks, err := filepath.Glob(pattern)
+	if err != nil {
+		return err
+	}
+	if len(chunks) == 0 {
+		return os.ErrNotExist
+	}
+	var readers []io.Reader
+	var files []*os.File
+	for _, chunk := range chunks {
+		f, err := os.Open(chunk)
+		if err != nil {
+			for _, openFile := range files {
+				_ = openFile.Close()
+			}
+			return err
+		}
+		files = append(files, f)
+		readers = append(readers, f)
+	}
+	defer func() {
+		for _, f := range files {
+			_ = f.Close()
+		}
+	}()
+
+	gz, err := gzip.NewReader(io.MultiReader(readers...))
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+
+	cleanDest, err := filepath.Abs(destDir)
+	if err != nil {
+		return err
+	}
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		target, err := safeArchiveTarget(cleanDest, hdr.Name)
+		if err != nil {
+			return err
+		}
+		mode := os.FileMode(hdr.Mode)
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, mode.Perm()); err != nil {
+				return err
+			}
+			_ = os.Chmod(target, mode.Perm())
+		case tar.TypeReg, tar.TypeRegA:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			out, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode.Perm())
+			if err != nil {
+				return err
+			}
+			_, copyErr := io.Copy(out, tr)
+			closeErr := out.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+			_ = os.Chmod(target, mode.Perm())
+		case tar.TypeSymlink:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			_ = os.Remove(target)
+			if err := os.Symlink(hdr.Linkname, target); err != nil {
+				return err
+			}
+		case tar.TypeLink:
+			linkTarget, err := safeArchiveTarget(cleanDest, hdr.Linkname)
+			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			_ = os.Remove(target)
+			if err := os.Link(linkTarget, target); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func safeArchiveTarget(destDir, name string) (string, error) {
+	cleanName := filepath.Clean(name)
+	if cleanName == "." || filepath.IsAbs(cleanName) || cleanName == ".." || strings.HasPrefix(cleanName, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("unsafe archive path %q", name)
+	}
+	target := filepath.Join(destDir, cleanName)
+	if target != destDir && !strings.HasPrefix(target, destDir+string(os.PathSeparator)) {
+		return "", fmt.Errorf("unsafe archive path %q", name)
+	}
+	return target, nil
 }
 
 func fileWithMode(path string, mode os.FileMode) bool {
@@ -1085,6 +1227,7 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		"RUNNER_ALLOW_RUNASROOT=1",
 		"RUNNER_HOME=" + cfg.runnerHome,
 		"DOCKER_HOST=unix:///var/run/docker.sock",
+		"GOROOT=" + goRoot,
 		"DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1",
 	}
 	if len(cfg.dnsServers) > 0 {

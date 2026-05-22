@@ -1,6 +1,9 @@
 package main
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -8,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -56,13 +60,20 @@ func TestParseScope(t *testing.T) {
 	}
 }
 
-func TestBakedToolchainRestoresGoExecutable(t *testing.T) {
+func TestBakedToolchainRestoresJobEntrypointTools(t *testing.T) {
+	want := map[string]string{
+		"go":     "/usr/local/go/bin/go",
+		"crane":  "/usr/local/bin/crane",
+		"docker": "/usr/local/bin/docker",
+	}
 	for _, spec := range bakedToolchainFiles {
-		if spec.dest == "/usr/local/go/bin/go" && spec.name == "go" && spec.mode&0o111 != 0 {
-			return
+		if want[spec.name] == spec.dest && spec.mode&0o111 != 0 {
+			delete(want, spec.name)
 		}
 	}
-	t.Fatal("baked toolchain restore list does not include /usr/local/go/bin/go")
+	if len(want) > 0 {
+		t.Fatalf("baked toolchain restore list is missing entries: %#v", want)
+	}
 }
 
 func TestClassifyToken(t *testing.T) {
@@ -917,6 +928,9 @@ func TestStartWorkerAppliesResourceLimits(t *testing.T) {
 	if !slices.Contains(created.Env, "DOCKER_HOST=unix:///var/run/docker.sock") {
 		t.Fatalf("Env missing DOCKER_HOST: %#v", created.Env)
 	}
+	if !slices.Contains(created.Env, "GOROOT="+goRoot) {
+		t.Fatalf("Env missing GOROOT: %#v", created.Env)
+	}
 }
 
 func TestHostMountSource(t *testing.T) {
@@ -1016,6 +1030,72 @@ func TestEnsureActionNodeRuntimesRestoresChunkedBackups(t *testing.T) {
 			t.Fatalf("node%s was not executable", major)
 		}
 	}
+}
+
+func TestEnsureBakedGoToolchainRestoresChunkedArchive(t *testing.T) {
+	oldGoRoot := goRoot
+	oldBackupDir := goToolchainBackupDir
+	t.Cleanup(func() {
+		goRoot = oldGoRoot
+		goToolchainBackupDir = oldBackupDir
+	})
+
+	root := t.TempDir()
+	goRoot = filepath.Join(root, "usr", "local", "go")
+	goToolchainBackupDir = filepath.Join(root, "backup")
+	if err := os.MkdirAll(goToolchainBackupDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	archive := makeGoToolchainArchive(t)
+	mid := len(archive) / 2
+	if err := os.WriteFile(filepath.Join(goToolchainBackupDir, "go.tar.gz.part.000"), archive[:mid], 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(goToolchainBackupDir, "go.tar.gz.part.001"), archive[mid:], 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ensureBakedGoToolchain(); err != nil {
+		t.Fatalf("ensureBakedGoToolchain: %v", err)
+	}
+	if !executableFile(filepath.Join(goRoot, "bin", "go")) {
+		t.Fatal("go binary was not restored executable")
+	}
+	if !executableFile(filepath.Join(goRoot, "pkg", "tool", runtime.GOOS+"_"+runtime.GOARCH, "compile")) {
+		t.Fatal("go compile tool was not restored executable")
+	}
+}
+
+func makeGoToolchainArchive(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	files := map[string]string{
+		"go/bin/go":    "go",
+		"go/bin/gofmt": "gofmt",
+		"go/pkg/tool/" + runtime.GOOS + "_" + runtime.GOARCH + "/compile": "compile",
+	}
+	for name, body := range files {
+		hdr := &tar.Header{
+			Name: name,
+			Mode: 0o755,
+			Size: int64(len(body)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write([]byte(body)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }
 
 func TestEnsureActionNodeRuntimesFailsWhenBackupMissing(t *testing.T) {
