@@ -47,6 +47,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 ENV PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV GOROOT=/usr/local/go
 ENV COMPILER_PATH=/usr/local/bin:/usr/libexec/gcc/x86_64-linux-gnu/14
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
@@ -254,6 +255,8 @@ COPY --from=wrapper-build /smoothnas-wrapper /usr/local/bin/smoothnas-wrapper
 RUN set -eux; \
     nvcc_path="$(command -v nvcc || printf /usr/local/cuda/bin/nvcc)"; \
     go_path="$(command -v go)"; \
+    crane_path="$(command -v crane)"; \
+    docker_path="$(command -v docker)"; \
     ptxas_path="$(dpkg -L cuda-nvcc-12-8 | grep '/bin/ptxas$' | head -n1)"; \
     nvlink_path="$(dpkg -L cuda-nvcc-12-8 | grep '/bin/nvlink$' | head -n1)"; \
     cc1_path="$(dpkg -L cpp-14-x86-64-linux-gnu gcc-14-x86-64-linux-gnu | grep '/cc1$' | head -n1)"; \
@@ -261,8 +264,11 @@ RUN set -eux; \
     cicc_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/bin/cicc$' | head -n1)"; \
     libdevice_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/libdevice/libdevice.10.bc$' | head -n1)"; \
     cublas_lib_dir=/usr/local/cuda/targets/x86_64-linux/lib; \
+    go_backup_dir=/usr/local/share/smoothnas-go-toolchain; \
     toolchain_backup_dir=/usr/local/share/smoothnas-toolchain; \
     test -x "$go_path"; \
+    test -x "$crane_path"; \
+    test -x "$docker_path"; \
     test -x "$nvcc_path"; \
     test -x "$ptxas_path"; \
     test -x "$nvlink_path"; \
@@ -273,6 +279,12 @@ RUN set -eux; \
     cp "$go_path" /tmp/smoothnas-go; \
     install -m 0755 /tmp/smoothnas-go /usr/local/go/bin/go; \
     rm -f /tmp/smoothnas-go; \
+    cp "$crane_path" /tmp/smoothnas-crane; \
+    install -m 0755 /tmp/smoothnas-crane /usr/local/bin/crane; \
+    rm -f /tmp/smoothnas-crane; \
+    cp "$docker_path" /tmp/smoothnas-docker; \
+    install -m 0755 /tmp/smoothnas-docker /usr/local/bin/docker; \
+    rm -f /tmp/smoothnas-docker; \
     cp "$nvcc_path" /tmp/smoothnas-nvcc; \
     install -m 0755 /tmp/smoothnas-nvcc /usr/local/cuda/bin/nvcc; \
     rm -f /tmp/smoothnas-nvcc; \
@@ -305,6 +317,8 @@ RUN set -eux; \
       chmod 0644 "$dest/$name.part."*; \
     }; \
     backup_toolchain_file go /usr/local/go/bin/go 0755; \
+    backup_toolchain_file crane /usr/local/bin/crane 0755; \
+    backup_toolchain_file docker /usr/local/bin/docker 0755; \
     backup_toolchain_file nvcc /usr/local/cuda/bin/nvcc 0755; \
     backup_toolchain_file ptxas /usr/local/cuda/bin/ptxas 0755; \
     backup_toolchain_file nvlink /usr/local/cuda/bin/nvlink 0755; \
@@ -314,7 +328,14 @@ RUN set -eux; \
     backup_toolchain_file libdevice.10.bc /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc 0644; \
     backup_toolchain_file libcublas.so /usr/local/cuda/targets/x86_64-linux/lib/libcublas.so 0644; \
     backup_toolchain_file libcublasLt.so /usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so 0644; \
+    mkdir -p "$go_backup_dir"; \
+    tar -C /usr/local -czf "$go_backup_dir/go.tar.gz" go; \
+    split -b 8m -d -a 3 "$go_backup_dir/go.tar.gz" "$go_backup_dir/go.tar.gz.part."; \
+    chmod 0644 "$go_backup_dir/go.tar.gz.part."*; \
     test -x /usr/local/go/bin/go; \
+    test -x /usr/local/go/pkg/tool/linux_amd64/compile; \
+    test -x /usr/local/bin/crane; \
+    test -x /usr/local/bin/docker; \
     test -x /usr/local/cuda/bin/nvcc; \
     test -x /usr/local/cuda/bin/ptxas; \
     test -x /usr/local/cuda/bin/nvlink; \
@@ -324,7 +345,10 @@ RUN set -eux; \
     test -f /usr/local/cuda/targets/x86_64-linux/lib/libcublas.so; \
     test -f /usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so; \
     test -f /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc; \
+    test -f /usr/local/share/smoothnas-go-toolchain/go.tar.gz.part.000; \
     test -f /usr/local/share/smoothnas-toolchain/go/go.part.000; \
+    test -f /usr/local/share/smoothnas-toolchain/crane/crane.part.000; \
+    test -f /usr/local/share/smoothnas-toolchain/docker/docker.part.000; \
     test -f /usr/local/share/smoothnas-toolchain/cc1/cc1.part.000; \
     test -f /usr/local/share/smoothnas-toolchain/cicc/cicc.part.000; \
     test -f /usr/local/share/smoothnas-toolchain/libcublas.so/libcublas.so.part.000
