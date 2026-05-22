@@ -250,19 +250,25 @@ COPY --from=wrapper-build /smoothnas-wrapper /usr/local/bin/smoothnas-wrapper
 # LXC rootfs import preserves files added by final layers more reliably
 # than files added in the early apt/toolchain layer.
 RUN set -eux; \
+    nvcc_path="$(command -v nvcc || printf /usr/local/cuda/bin/nvcc)"; \
     cc1_path="$(dpkg -L cpp-14-x86-64-linux-gnu gcc-14-x86-64-linux-gnu | grep '/cc1$' | head -n1)"; \
     cc1plus_path="$(dpkg -L g++-14-x86-64-linux-gnu | grep '/cc1plus$' | head -n1)"; \
     cicc_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/bin/cicc$' | head -n1)"; \
     libdevice_path="$(dpkg -L cuda-nvvm-12-8 | grep '/nvvm/libdevice/libdevice.10.bc$' | head -n1)"; \
+    test -x "$nvcc_path"; \
     test -x "$cc1_path"; \
     test -x "$cc1plus_path"; \
     test -x "$cicc_path"; \
     test -f "$libdevice_path"; \
+    cp "$nvcc_path" /tmp/smoothnas-nvcc; \
+    install -m 0755 /tmp/smoothnas-nvcc /usr/local/cuda/bin/nvcc; \
+    rm -f /tmp/smoothnas-nvcc; \
     install -m 0755 "$cc1_path" /usr/local/bin/cc1; \
     install -m 0755 "$cc1plus_path" /usr/local/bin/cc1plus; \
     install -m 0755 "$cicc_path" /usr/local/bin/cicc; \
     mkdir -p /usr/local/share/cuda-nvvm/libdevice; \
     install -m 0644 "$libdevice_path" /usr/local/share/cuda-nvvm/libdevice/libdevice.10.bc; \
+    test -x /usr/local/cuda/bin/nvcc; \
     test -x /usr/local/bin/cc1; \
     test -x /usr/local/bin/cc1plus; \
     test -x /usr/local/bin/cicc; \
