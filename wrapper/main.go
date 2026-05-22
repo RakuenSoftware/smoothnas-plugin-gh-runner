@@ -320,6 +320,7 @@ type bakedToolchainFile struct {
 }
 
 var bakedToolchainFiles = []bakedToolchainFile{
+	{name: "go", dest: "/usr/local/go/bin/go", mode: 0o755},
 	{name: "nvcc", dest: "/usr/local/cuda/bin/nvcc", mode: 0o755},
 	{name: "ptxas", dest: "/usr/local/cuda/bin/ptxas", mode: 0o755},
 	{name: "nvlink", dest: "/usr/local/cuda/bin/nvlink", mode: 0o755},

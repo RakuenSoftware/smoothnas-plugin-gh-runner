@@ -56,6 +56,15 @@ func TestParseScope(t *testing.T) {
 	}
 }
 
+func TestBakedToolchainRestoresGoExecutable(t *testing.T) {
+	for _, spec := range bakedToolchainFiles {
+		if spec.dest == "/usr/local/go/bin/go" && spec.name == "go" && spec.mode&0o111 != 0 {
+			return
+		}
+	}
+	t.Fatal("baked toolchain restore list does not include /usr/local/go/bin/go")
+}
+
 func TestClassifyToken(t *testing.T) {
 	cases := []struct {
 		token string
