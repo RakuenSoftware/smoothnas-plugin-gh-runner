@@ -15,6 +15,11 @@ COPY wrapper/go.mod wrapper/main.go ./
 # regardless of glibc/musl differences.
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /smoothnas-wrapper .
 
+FROM golang:1.25-bookworm AS go-runtime
+
+FROM golang:1.25-alpine AS tools-build
+RUN go install github.com/google/go-containerregistry/cmd/crane@v0.20.6
+
 # --- final image ---
 FROM debian:13-slim
 
@@ -37,14 +42,23 @@ ARG TARGETARCH=amd64
 ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+ENV PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
 # GitHub + runtime API calls; git/ca-certs/tar/sudo because the runner expects
 # them; libicu for the .NET-based runner host). Self-hosted workflow jobs also
 # expect the hosted-runner basics: gh for release dispatch and docker-cli for
 # build/push against the mounted SmoothNAS runtime socket.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
+#
+# Bake the CUDA/Vulkan llama-cpp release toolchain into the runner image so
+# accelerator jobs do not install packages after a worker starts.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl; \
+    printf '%s\n' 'deb [trusted=yes] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /' \
+      > /etc/apt/sources.list.d/cuda-ubuntu2404-x86_64.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         docker-cli \
@@ -56,9 +70,40 @@ RUN apt-get update \
         sudo \
         tar \
         xz-utils \
- && install -m 0755 /usr/bin/docker /usr/local/bin/docker \
- && /usr/local/bin/docker --version \
- && rm -rf /var/lib/apt/lists/*
+        binutils \
+        build-essential \
+        cmake \
+        gcc-14 \
+        g++-14 \
+        libgomp1 \
+        libssl-dev \
+        cuda-nvcc-12-8 \
+        cuda-nvvm-12-8 \
+        cuda-cudart-dev-12-8 \
+        cuda-driver-dev-12-8 \
+        glslc \
+        libegl1 \
+        libgl1 \
+        libgles2 \
+        libglvnd0 \
+        libglx0 \
+        libvulkan-dev \
+        libvulkan1 \
+        libxcb-cursor-dev \
+        libxcb-xinerama0 \
+        libxcb-xinput0 \
+        mesa-vulkan-drivers \
+        spirv-headers; \
+    install -m 0755 /usr/bin/docker /usr/local/bin/docker; \
+    /usr/local/bin/docker --version; \
+    /usr/local/cuda/bin/nvcc --version; \
+    glslc --version; \
+    cmake --version; \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=go-runtime /usr/local/go /usr/local/go
+COPY --from=tools-build /go/bin/crane /usr/local/bin/crane
+RUN go version && crane version
 
 # Non-root runner user. Matches what GitHub's official install
 # instructions recommend; the runner refuses to start as root by
