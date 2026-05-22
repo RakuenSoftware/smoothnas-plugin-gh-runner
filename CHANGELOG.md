@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.51](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.50...v0.3.51) (2026-05-22)
+
+
+### Bug Fixes
+
+* restore go binary in worker rootfs ([#115](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/115)) ([2f3316d](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/2f3316d2c4678b6887f2f1945b239b68f55d09be))
+
 ## [0.3.50](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.49...v0.3.50) (2026-05-22)
 
 
