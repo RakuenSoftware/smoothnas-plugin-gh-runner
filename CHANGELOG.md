@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.43](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.42...v0.3.43) (2026-05-22)
+
+
+### Bug Fixes
+
+* preserve cuda nvvm toolchain paths ([#99](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/99)) ([5a181cd](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/5a181cd1cb811f5b336496e07b535bcb078ee348))
+
 ## [0.3.42](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.41...v0.3.42) (2026-05-22)
 
 
