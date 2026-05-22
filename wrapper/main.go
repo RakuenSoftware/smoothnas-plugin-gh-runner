@@ -1074,6 +1074,8 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		binds = append(binds, hostWorkspace+":"+filepath.Join(cfg.runnerHome, "_work")+":rw")
 	}
 	env := []string{
+		"PATH=" + workerPath(),
+		"COMPILER_PATH=" + workerCompilerPath(),
 		"GH_RUNNER_MODE=worker",
 		"GH_REPO_URL=" + cfg.repoURL,
 		"GH_RUNNER_TOKEN=" + cfg.token,
@@ -1081,6 +1083,7 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		"GH_RUNNER_GROUP=" + cfg.group,
 		"GH_API_BASE=" + cfg.apiBase,
 		"GH_RUNNER_EPHEMERAL=true",
+		"RUNNER_ALLOW_RUNASROOT=1",
 		"RUNNER_HOME=" + cfg.runnerHome,
 		"DOCKER_HOST=unix:///var/run/docker.sock",
 		"DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1",
@@ -1115,6 +1118,20 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 	}
 	log.Printf("started ephemeral worker %s (%s)", name, shortID(id))
 	return nil
+}
+
+func workerPath() string {
+	if value := os.Getenv("PATH"); value != "" {
+		return value
+	}
+	return "/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+}
+
+func workerCompilerPath() string {
+	if value := os.Getenv("COMPILER_PATH"); value != "" {
+		return value
+	}
+	return "/usr/local/bin:/usr/libexec/gcc/x86_64-linux-gnu/14"
 }
 
 func stopAllWorkers(ctx context.Context, dc *dockerClient, cfg config) error {
