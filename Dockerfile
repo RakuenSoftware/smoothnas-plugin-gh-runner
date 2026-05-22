@@ -47,7 +47,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV RUNNER_ALLOW_RUNASROOT=1
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 ENV PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ENV COMPILER_PATH=/usr/local/lib/gcc/x86_64-linux-gnu/14:/usr/libexec/gcc/x86_64-linux-gnu/14
+ENV COMPILER_PATH=/usr/local/bin:/usr/libexec/gcc/x86_64-linux-gnu/14
 
 # Runtime deps the actions runner needs (curl/jq for our wrapper's
 # GitHub + runtime API calls; git/ca-certs/tar/sudo because the runner expects
@@ -104,17 +104,34 @@ RUN set -eux; \
     /usr/local/cuda/bin/nvcc --version; \
     glslc --version; \
     cmake --version; \
+    cuda_math=/usr/local/cuda/targets/x86_64-linux/include/crt/math_functions.h; \
+    sed -i -E \
+      -e 's/(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double[[:space:]]+rsqrt\(double x\));/\1 noexcept (true);/' \
+      -e 's/(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float[[:space:]]+rsqrtf\(float x\));/\1 noexcept (true);/' \
+      -e 's/(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double[[:space:]]+sinpi\(double x\));/\1 noexcept (true);/' \
+      -e 's/(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float[[:space:]]+sinpif\(float x\));/\1 noexcept (true);/' \
+      -e 's/(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double[[:space:]]+cospi\(double x\));/\1 noexcept (true);/' \
+      -e 's/(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float[[:space:]]+cospif\(float x\));/\1 noexcept (true);/' \
+      -e 's/__func__\(double rsqrt\(double a\)\);/__func__(double rsqrt(double a) noexcept (true));/' \
+      -e 's/__func__\(float rsqrtf\(float a\)\);/__func__(float rsqrtf(float a) noexcept (true));/' \
+      -e 's/__func__\(double sinpi\(double a\)\);/__func__(double sinpi(double a) noexcept (true));/' \
+      -e 's/__func__\(float sinpif\(float a\)\);/__func__(float sinpif(float a) noexcept (true));/' \
+      -e 's/__func__\(double cospi\(double a\)\);/__func__(double cospi(double a) noexcept (true));/' \
+      -e 's/__func__\(float cospif\(float a\)\);/__func__(float cospif(float a) noexcept (true));/' \
+      "$cuda_math"; \
     cc1_path="$(dpkg -L cpp-14-x86-64-linux-gnu gcc-14-x86-64-linux-gnu | grep '/cc1$' | head -n1)"; \
     cc1plus_path="$(dpkg -L g++-14-x86-64-linux-gnu | grep '/cc1plus$' | head -n1)"; \
     test -x "$cc1_path"; \
     test -x "$cc1plus_path"; \
-    install -D -m 0755 "$cc1_path" /usr/local/lib/gcc/x86_64-linux-gnu/14/cc1; \
-    install -D -m 0755 "$cc1plus_path" /usr/local/lib/gcc/x86_64-linux-gnu/14/cc1plus; \
+    install -m 0755 "$cc1_path" /usr/local/bin/cc1; \
+    install -m 0755 "$cc1plus_path" /usr/local/bin/cc1plus; \
     printf 'int main() { return 0; }\n' > /tmp/c-sanity.c; \
     printf 'int main() { return 0; }\n' > /tmp/cxx-sanity.cpp; \
     gcc-14 /tmp/c-sanity.c -o /tmp/c-sanity; \
     g++-14 /tmp/cxx-sanity.cpp -o /tmp/cxx-sanity; \
-    rm -f /tmp/c-sanity.c /tmp/c-sanity /tmp/cxx-sanity.cpp /tmp/cxx-sanity; \
+    printf '#include <math.h>\n__global__ void k() {}\nint main() { k<<<1,1>>>(); return 0; }\n' > /tmp/cuda-sanity.cu; \
+    /usr/local/cuda/bin/nvcc -c /tmp/cuda-sanity.cu -o /tmp/cuda-sanity.o; \
+    rm -f /tmp/c-sanity.c /tmp/c-sanity /tmp/cxx-sanity.cpp /tmp/cxx-sanity /tmp/cuda-sanity.cu /tmp/cuda-sanity.o; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=go-runtime /usr/local/go /usr/local/go
