@@ -104,12 +104,17 @@ RUN set -eux; \
     /usr/local/cuda/bin/nvcc --version; \
     glslc --version; \
     cmake --version; \
+    cc1_path="$(dpkg -L cpp-14-x86-64-linux-gnu gcc-14-x86-64-linux-gnu | grep '/cc1$' | head -n1)"; \
     cc1plus_path="$(dpkg -L g++-14-x86-64-linux-gnu | grep '/cc1plus$' | head -n1)"; \
+    test -x "$cc1_path"; \
     test -x "$cc1plus_path"; \
+    install -D -m 0755 "$cc1_path" /usr/local/lib/gcc/x86_64-linux-gnu/14/cc1; \
     install -D -m 0755 "$cc1plus_path" /usr/local/lib/gcc/x86_64-linux-gnu/14/cc1plus; \
+    printf 'int main() { return 0; }\n' > /tmp/c-sanity.c; \
     printf 'int main() { return 0; }\n' > /tmp/cxx-sanity.cpp; \
+    gcc-14 /tmp/c-sanity.c -o /tmp/c-sanity; \
     g++-14 /tmp/cxx-sanity.cpp -o /tmp/cxx-sanity; \
-    rm -f /tmp/cxx-sanity.cpp /tmp/cxx-sanity; \
+    rm -f /tmp/c-sanity.c /tmp/c-sanity /tmp/cxx-sanity.cpp /tmp/cxx-sanity; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=go-runtime /usr/local/go /usr/local/go
