@@ -39,8 +39,9 @@ ARG NODE20_SHA256_ARM=f704ce75d9a194c30c378049b516000e49612c2f046ac83c7435eb33ec
 ARG NODE24_VERSION=24.15.0
 ARG NODE24_SHA256_X64=472655581fb851559730c48763e0c9d3bc25975c59d518003fc0849d3e4ba0f6
 ARG NODE24_SHA256_ARM64=f3d5a797b5d210ce8e2cb265544c8e482eaedcb8aa409a8b46da7e8595d0dda0
-ARG LLAMA_REF=0a635dcd92ba66c75fccfef91c3e106f4668f367
-ARG LLAMA_ARCHIVE_SHA256=24c2d6a4bd1ba73c1f292ff4b9ea07a7740fb69abef4e12b7e15c53c86dc5e77
+ARG LLAMA_REPO=https://github.com/ggml-org/llama.cpp
+ARG LLAMA_REF=latest
+ARG LLAMA_ARCHIVE_SHA256=
 ARG TARGETARCH=amd64
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -154,18 +155,26 @@ COPY --from=tools-build /go/bin/crane /usr/local/bin/crane
 COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 RUN go version && crane version && docker --version
 
-# Bake the Atomic llama.cpp TurboQuant/MTP source used by the llama-cpp
-# plugin release workflow. Worker jobs build from this local tree instead of
-# cloning or downloading source at job runtime.
+# Bake the upstream llama.cpp source used by the llama-cpp plugin release
+# workflow. Worker jobs build from this local tree instead of cloning or
+# downloading source at job runtime.
 RUN set -eux; \
+    resolved_ref="${LLAMA_REF}"; \
+    if [ "$resolved_ref" = latest ]; then \
+      resolved_ref="$(curl -fsSL https://api.github.com/repos/ggml-org/llama.cpp/releases/latest | jq -r .tag_name)"; \
+    fi; \
+    test -n "$resolved_ref"; \
     curl -fsSLo /tmp/llama.tar.gz \
-      "https://github.com/AtomicBot-ai/atomic-llama-cpp-turboquant/archive/${LLAMA_REF}.tar.gz"; \
-    echo "${LLAMA_ARCHIVE_SHA256}  /tmp/llama.tar.gz" | sha256sum -c -; \
-    mkdir -p /opt/atomic-llama-cpp-turboquant; \
-    tar -xzf /tmp/llama.tar.gz --strip-components=1 -C /opt/atomic-llama-cpp-turboquant; \
-    printf '%s\n' "${LLAMA_REF}" > /opt/atomic-llama-cpp-turboquant/.smoothnas-llama-ref; \
+      "${LLAMA_REPO}/archive/${resolved_ref}.tar.gz"; \
+    if [ -n "${LLAMA_ARCHIVE_SHA256}" ]; then \
+      echo "${LLAMA_ARCHIVE_SHA256}  /tmp/llama.tar.gz" | sha256sum -c -; \
+    fi; \
+    mkdir -p /opt/llama.cpp; \
+    tar -xzf /tmp/llama.tar.gz --strip-components=1 -C /opt/llama.cpp; \
+    printf '%s\n' "$resolved_ref" > /opt/llama.cpp/.smoothnas-llama-ref; \
+    printf '%s\n' "${LLAMA_REPO}" > /opt/llama.cpp/.smoothnas-llama-repo; \
     rm /tmp/llama.tar.gz; \
-    test -f /opt/atomic-llama-cpp-turboquant/CMakeLists.txt
+    test -f /opt/llama.cpp/CMakeLists.txt
 
 # Non-root runner user. Matches what GitHub's official install
 # instructions recommend; the runner refuses to start as root by
