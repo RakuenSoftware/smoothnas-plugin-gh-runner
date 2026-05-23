@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.52...v0.4.0) (2026-05-23)
+
+
+### Features
+
+* bake latest upstream llama.cpp source ([#119](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/119)) ([e3aaba5](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/e3aaba5313ed8cb8d7fdc0e8e03aba037fa6e509))
+
 ## [0.3.52](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.51...v0.3.52) (2026-05-22)
 
 
