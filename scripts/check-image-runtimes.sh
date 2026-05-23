@@ -50,8 +50,9 @@ docker run --rm --entrypoint /bin/sh "$image" -c 'g++-14 --version'
 docker run --rm --entrypoint /bin/sh "$image" -c 'test -x /usr/local/bin/cc1 && test -x /usr/local/bin/cc1plus'
 docker run --rm --entrypoint /bin/sh "$image" -c 'echo "int main() { return 0; }" >/tmp/c-sanity.c && gcc-14 /tmp/c-sanity.c -o /tmp/c-sanity'
 docker run --rm --entrypoint /bin/sh "$image" -c 'echo "int main() { return 0; }" >/tmp/cxx-sanity.cpp && g++-14 /tmp/cxx-sanity.cpp -o /tmp/cxx-sanity'
-docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/atomic-llama-cpp-turboquant/CMakeLists.txt'
-docker run --rm --entrypoint /bin/sh "$image" -c 'test "$(cat /opt/atomic-llama-cpp-turboquant/.smoothnas-llama-ref)" = 0a635dcd92ba66c75fccfef91c3e106f4668f367'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -f /opt/llama.cpp/CMakeLists.txt'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test -s /opt/llama.cpp/.smoothnas-llama-ref'
+docker run --rm --entrypoint /bin/sh "$image" -c 'test "$(cat /opt/llama.cpp/.smoothnas-llama-repo)" = https://github.com/ggml-org/llama.cpp'
 docker run --rm --entrypoint /bin/sh "$image" -c 'dpkg-query -W gcc-14 g++-14 cmake cuda-nvcc-12-8 cuda-cudart-dev-12-8 libcublas-dev-12-8 libvulkan-dev glslc'
 
 tmp="$(mktemp -d)"
