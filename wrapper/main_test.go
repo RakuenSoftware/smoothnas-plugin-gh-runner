@@ -1194,3 +1194,17 @@ func TestMintRegistrationToken_ContextCancel(t *testing.T) {
 		t.Fatal("expected context cancellation error")
 	}
 }
+
+func TestKVMDevices(t *testing.T) {
+	if got := kvmDevices(false); got != nil {
+		t.Fatalf("kvmDevices(false) = %v, want nil", got)
+	}
+	got := kvmDevices(true)
+	if len(got) != 1 {
+		t.Fatalf("kvmDevices(true) returned %d devices, want 1", len(got))
+	}
+	d := got[0]
+	if d.PathOnHost != "/dev/kvm" || d.PathInContainer != "/dev/kvm" || d.CgroupPermissions != "rwm" {
+		t.Fatalf("kvmDevices(true)[0] = %+v, want /dev/kvm rwm", d)
+	}
+}

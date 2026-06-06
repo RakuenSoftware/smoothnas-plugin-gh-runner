@@ -115,6 +115,7 @@ type config struct {
 	dockerHost     string
 	workerImage    string
 	bindWorkspace  bool
+	kvm            bool
 	dnsServers     []string
 	workspaceRepos []string
 }
@@ -216,6 +217,7 @@ func loadConfig() (config, error) {
 		dockerHost:     envOr("DOCKER_HOST", defaultDockerHost),
 		workerImage:    os.Getenv("GH_RUNNER_WORKER_IMAGE"),
 		bindWorkspace:  envBool("GH_RUNNER_BIND_WORKSPACE", false),
+		kvm:            envBool("GH_RUNNER_KVM", false),
 		dnsServers:     envList("GH_RUNNER_DNS_SERVERS", ""),
 		workspaceRepos: envList("GH_RUNNER_WORKSPACE_REPOS", ""),
 	}, nil
@@ -1020,11 +1022,34 @@ type createContainerRequest struct {
 }
 
 type hostConfig struct {
-	Binds         []string      `json:"Binds,omitempty"`
-	NetworkMode   string        `json:"NetworkMode,omitempty"`
-	NanoCPUs      int64         `json:"NanoCpus,omitempty"`
-	Memory        int64         `json:"Memory,omitempty"`
-	RestartPolicy restartPolicy `json:"RestartPolicy"`
+	Binds         []string        `json:"Binds,omitempty"`
+	Devices       []deviceMapping `json:"Devices,omitempty"`
+	NetworkMode   string          `json:"NetworkMode,omitempty"`
+	NanoCPUs      int64           `json:"NanoCpus,omitempty"`
+	Memory        int64           `json:"Memory,omitempty"`
+	RestartPolicy restartPolicy   `json:"RestartPolicy"`
+}
+
+// deviceMapping mirrors Docker's HostConfig.Devices entries; the
+// SmoothNAS runtime binds each host device node into the worker and
+// adds the matching cgroup allow rule.
+type deviceMapping struct {
+	PathOnHost        string `json:"PathOnHost"`
+	PathInContainer   string `json:"PathInContainer"`
+	CgroupPermissions string `json:"CgroupPermissions"`
+}
+
+// kvmDevices returns the device mappings a worker needs for
+// KVM-accelerated nested virtualization (qemu/virtme-ng), or nil when
+// GH_RUNNER_KVM is off. /dev/kvm must exist on the host; the option is
+// opt-in because requesting a missing device node fails worker start.
+func kvmDevices(enabled bool) []deviceMapping {
+	if !enabled {
+		return nil
+	}
+	return []deviceMapping{
+		{PathOnHost: "/dev/kvm", PathInContainer: "/dev/kvm", CgroupPermissions: "rwm"},
+	}
 }
 
 type restartPolicy struct {
@@ -1242,6 +1267,7 @@ func startWorker(ctx context.Context, dc *dockerClient, cfg config, image, works
 		Labels: map[string]string{workerLabelKey: "true"},
 		HostConfig: hostConfig{
 			Binds:         binds,
+			Devices:       kvmDevices(cfg.kvm),
 			NetworkMode:   networkMode,
 			NanoCPUs:      workerNanoCPUs(cfg.workerCPUs),
 			Memory:        cfg.workerMemory,

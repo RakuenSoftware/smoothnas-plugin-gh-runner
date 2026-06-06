@@ -5,3 +5,4 @@ wrapper/coverage.out
 
 # CI staging
 release/
+wrapper/wrapper
