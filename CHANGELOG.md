@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.4.0...v0.5.0) (2026-06-06)
+
+
+### Features
+
+* optional /dev/kvm passthrough to workers (GH_RUNNER_KVM) ([#121](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/issues/121)) ([0516714](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/0516714f9a7f75aaafd57a208cfad8836f5f57ba))
+
 ## [0.4.0](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.3.52...v0.4.0) (2026-05-23)
 
 
