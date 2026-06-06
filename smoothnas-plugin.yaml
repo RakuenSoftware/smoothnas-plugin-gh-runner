@@ -109,3 +109,11 @@ config:
       Set to true to bind the tier-bound workspace volume into each
       worker. The default false keeps active GitHub checkouts inside
       the worker's ephemeral rootfs and removes them with the worker.
+  - key: GH_RUNNER_KVM
+    type: boolean
+    label: Enable KVM in workers
+    default: "false"
+    description: |
+      Expose /dev/kvm to each ephemeral worker so jobs can run
+      KVM-accelerated nested VMs (qemu, virtme-ng). Requires /dev/kvm
+      on the host; leave off on hosts without hardware virtualization.
