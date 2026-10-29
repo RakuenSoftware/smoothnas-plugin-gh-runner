@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.5.0...v0.5.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* license the plugin under the AGPL-3.0 ([b371615](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/commit/b371615ea02aca8e6597b3f834e50c7e7f15a5a0))
+
 ## [0.5.0](https://github.com/RakuenSoftware/smoothnas-plugin-gh-runner/compare/v0.4.0...v0.5.0) (2026-06-06)
 
 
