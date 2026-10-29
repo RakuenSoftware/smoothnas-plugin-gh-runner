@@ -104,3 +104,7 @@ The Dockerfile pins `RUNNER_VERSION` and `RUNNER_SHA256` as build-args. To upgra
 ## License
 
 Add a LICENSE file at publish time. The wrapper code in this repo is original; the actions/runner downloaded into the image carries its own license terms (MIT).
+
+## License
+
+This plugin is licensed under the [AGPL-3.0](LICENSE).
